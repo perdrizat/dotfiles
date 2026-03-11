@@ -40,7 +40,7 @@ fi
 # Assuming your dotfiles are in ~/dotfiles and *not* organized into folders
 echo "Linking dotfiles with Stow..."
 cd ~/dotfiles
-stow agy
+stow agent
 stow bash
 stow git
 stow ssh
