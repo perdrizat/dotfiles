@@ -62,7 +62,7 @@ chmod 700 ~/dotfiles/ssh/.ssh
 [ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
 
 # Install remaining utilities
-sudo apt install build-essential python3-venv
+sudo apt install build-essential python3-venv  docker-compose-v2
 
 echo "Setup complete! Restart your shell or run"
 echo '. ~/.bashrc'

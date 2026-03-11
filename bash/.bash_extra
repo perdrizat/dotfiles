@@ -13,3 +13,8 @@ else
     export EDITOR='vi'
 fi
 export VISUAL="$EDITOR"
+
+# Only cd to home if we are currently in a Windows drive mapping
+if [[ "$PWD" == "/mnt/c/Users/mperd" ]]; then
+    cd ~
+fi

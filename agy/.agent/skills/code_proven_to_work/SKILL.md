@@ -4,10 +4,14 @@ description: Ensures all code changes are proven to work through mandatory manua
 ---
 # Code Proven to Work
 Every code change must be proven to work. You must not deliver code without verifying it functions correctly. There are two mandatory steps to proving a piece of code works: Manual Testing and Automated Testing. Neither is optional.
+## Prerequisites: API Keys and Required Input
+If any API keys, credentials, or other user input are needed to implement or test the changes, you must ask the user to provide this information **before starting the work** or as soon as you realize the need.
+
 ## 1. Manual Testing First
 Before finalizing any code, you must manually verify it does what it is supposed to do.
+*   **Browser End-to-End Testing (Mandatory)**: Before returning a completed task to the user, you must test it end-to-end in the browser using the browser subagent. You **must** ensure you capture a **screen recording** of the test session (using the `RecordingName` parameter).
 *   **Executing Code**: If possible (e.g., CLI tools, scripts, backend endpoints), run the relevant code yourself in the terminal. Verify the output matches the expected desired state. Produce proof by returning terminal output or logs.
-*   **Collaborative Manual Testing**: If a change involves UI modifications, complex networking, installation steps, or complex state that you cannot easily test yourself, you must pause and ask the user to manually test it. Provide the exact sequence of commands or steps they need to perform, and wait for their confirmation before proceeding.
+*   **Collaborative Manual Testing**: If a change involves complex networking, mobile apps, or state you cannot easily test yourself, you must pause and ask the user to manually test it. Provide the exact sequence of commands or steps they need to perform, and wait for their confirmation before proceeding.
 *   **Edge Cases**: Once the happy path is verified, you must actively consider test edge cases to verify resilience.
 ## 2. Automated Testing
 You must bundle every code change (fix or feature) with an automated test that proves the change works.
