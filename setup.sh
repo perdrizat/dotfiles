@@ -47,9 +47,9 @@ stow ssh
 
 # sort out SSH
 # Decrypt SSH key if it doesn't already exist
-if [ -f ~/dotfiles/ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
+if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
     echo "Decrypting SSH key..."
-    age --decrypt -o ~/.ssh/id_ed25519 ~/dotfiles/ssh/id_ed25519.age
+    age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age
     chmod 600 ~/.ssh/id_ed25519
 fi
 echo "Fixing remaining SSH permissions..."
