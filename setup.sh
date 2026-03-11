@@ -1,19 +1,13 @@
 #!/bin/bash
 
-# Ensure sudo is available
-if ! command -v sudo &> /dev/null; then
-    echo "Sudo not found. Please run as root or install sudo."
-    exit 1
-fi
-
 # Install the setup prerequisites
-sudo apt update
-sudo apt install -y git curl stow age
+# Install the setup prerequisites if missing
+command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt update && sudo apt install -y git curl stow age; }
 
 # Clone the repo if we aren't already in it
 if [ ! -d "$HOME/dotfiles" ]; then
     echo "Cloning dotfiles..."
-    git clone https://github.com/perdrizat/dotfiles.git "$HOME/dotfiles"
+    cd $HOME && git clone https://github.com/perdrizat/dotfiles.git 
     cd "$HOME/dotfiles"
 else
     cd "$HOME/dotfiles"
@@ -52,7 +46,8 @@ stow git
 stow ssh
 
 # sort out SSH
-if [ -f ~/dotfiles/ssh/id_ed25519.age ]; then
+# Decrypt SSH key if it doesn't already exist
+if [ -f ~/dotfiles/ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
     echo "Decrypting SSH key..."
     age --decrypt -o ~/.ssh/id_ed25519 ~/dotfiles/ssh/id_ed25519.age
     chmod 600 ~/.ssh/id_ed25519
@@ -61,8 +56,8 @@ echo "Fixing remaining SSH permissions..."
 chmod 700 ~/dotfiles/ssh/.ssh
 [ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
 
-# Install remaining utilities
-sudo apt install build-essential python3-venv  docker-compose-v2
+# Install remaining utilities if not already present
+dpkg -s build-essential python3-venv docker-compose-v2 >/dev/null 2>&1 || sudo apt install -y build-essential python3-venv docker-compose-v2
 
 echo "Setup complete! Restart your shell or run"
 echo '. ~/.bashrc'
