@@ -18,3 +18,9 @@ export VISUAL="$EDITOR"
 if [[ "$PWD" == "/mnt/c/Users/mperd" ]]; then
     cd ~
 fi
+
+# Custom prompt for WSL
+if [ -n "$WSL_DISTRO_NAME" ]; then
+    # Default Maol prompt style, but with WSL name
+    export PS1="\[\e]0;\u@$WSL_DISTRO_NAME: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@$WSL_DISTRO_NAME\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
+fi
