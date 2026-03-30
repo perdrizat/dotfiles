@@ -40,10 +40,14 @@ fi
 # Assuming your dotfiles are in ~/dotfiles and *not* organized into folders
 echo "Linking dotfiles with Stow..."
 cd ~/dotfiles
-stow agent
 stow bash
 stow git
 stow ssh
+if [ ! -d ~/.agent ]; then # Antigravity doesn't like ~/.agent as a symlink
+    mkdir ~/.agent && \
+	ln -s ~/dotfiles/agent/.agent/skills ~/.agent && \
+	ln -s ~/dotfiles/agent/.agent/workflows ~/.agent
+fi
 
 # sort out SSH
 # Decrypt SSH key if it doesn't already exist
@@ -56,7 +60,8 @@ echo "Fixing remaining SSH permissions..."
 chmod 700 ~/dotfiles/ssh/.ssh
 [ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
 
-# Install remaining utilities if not already present
+# Update & install remaining utilities if not already present
+sudo apt update && sudo apt upgrade && sudo apt autoremove
 dpkg -s build-essential python3-venv docker-compose-v2 >/dev/null 2>&1 || sudo apt install -y build-essential python3-venv docker-compose-v2
 
 echo "Setup complete! Restart your shell or run"
