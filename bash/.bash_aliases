@@ -1,2 +1,7 @@
 alias ll='ls -al'
 alias lt='ls -alrt'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias gs='git status'
+alias gd='git diff'
+alias grep='grep --color=auto'

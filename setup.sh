@@ -7,7 +7,7 @@ command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev
 # Clone the repo if we aren't already in it
 if [ ! -d "$HOME/dotfiles" ]; then
     echo "Cloning dotfiles..."
-    cd $HOME && git clone https://github.com/perdrizat/dotfiles.git 
+    cd "$HOME" && git clone https://github.com/perdrizat/dotfiles.git
     cd "$HOME/dotfiles"
 else
     cd "$HOME/dotfiles"
@@ -39,15 +39,15 @@ fi
 # Run Stow
 # Assuming your dotfiles are in ~/dotfiles and *not* organized into folders
 echo "Linking dotfiles with Stow..."
-cd ~/dotfiles
-stow bash
-stow git
-stow ssh
+cd "$HOME/dotfiles"
+stow --adopt bash
+stow --adopt git
+stow --adopt ssh
 if [ ! -d ~/.agent ]; then # Antigravity doesn't like ~/.agent as a symlink
-    mkdir ~/.agent && \
-	ln -s ~/dotfiles/agent/.agent/skills ~/.agent && \
-	ln -s ~/dotfiles/agent/.agent/workflows ~/.agent
+    mkdir ~/.agent
 fi
+ln -sf ~/dotfiles/agent/.agent/skills ~/.agent/skills
+ln -sf ~/dotfiles/agent/.agent/workflows ~/.agent/workflows
 
 # sort out SSH
 # Decrypt SSH key if it doesn't already exist
@@ -61,7 +61,7 @@ chmod 700 ~/dotfiles/ssh/.ssh
 [ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
 
 # Update & install remaining utilities if not already present
-sudo apt update && sudo apt upgrade && sudo apt autoremove
+sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
 dpkg -s build-essential python3-venv docker-compose-v2 >/dev/null 2>&1 || sudo apt install -y build-essential python3-venv docker-compose-v2
 
 echo "Setup complete! Restart your shell or run"

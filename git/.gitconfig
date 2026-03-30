@@ -1,3 +1,12 @@
 [user]
 	name = Markus Perdrizat
 	email = maol@symlink.ch
+[init]
+	defaultBranch = main
+[pull]
+	rebase = true
+[core]
+	editor = vim
+[alias]
+	st = status
+	lg = log --oneline --graph --decorate

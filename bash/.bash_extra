@@ -1,18 +1,17 @@
+# PATH for local files
+export PATH=~/.local/bin:~/bin:$PATH
+
 # Fallback to vi if vim is not installed
-vim() {
-    if command -v vim >/dev/null 2>&1; then
-        command vim "$@"
-    else
-        command vi "$@"
-    fi
-}
-# set default editor
 if command -v vim >/dev/null 2>&1; then
     export EDITOR='vim'
 else
+    alias vim='vi'
     export EDITOR='vi'
 fi
 export VISUAL="$EDITOR"
+
+# for Claude Code
+COLORTERM=truecolor
 
 # Only cd to home if we are currently in a Windows drive mapping
 if [[ "$PWD" == "/mnt/c/Users/mperd" ]]; then
