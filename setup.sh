@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Install the setup prerequisites
 # Install the setup prerequisites if missing
 command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt update && sudo apt install -y git curl stow age; }
 
@@ -36,8 +35,7 @@ else
     echo "Custom loader already exists in .bashrc, skipping..."
 fi
 
-# Run Stow
-# Assuming your dotfiles are in ~/dotfiles and *not* organized into folders
+# Add the dotfiles
 echo "Linking dotfiles with Stow..."
 cd "$HOME/dotfiles"
 stow --adopt bash
