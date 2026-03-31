@@ -1,5 +1,11 @@
 # PATH for local files
-export PATH=~/.local/bin:~/bin:$PATH
+for dir in ~/.local/bin ~/bin; do
+    case ":$PATH:" in
+        *":$dir:"*) ;;
+        *) PATH="$dir:$PATH" ;;
+    esac
+done
+export PATH
 
 # Fallback to vi if vim is not installed
 if command -v vim >/dev/null 2>&1; then

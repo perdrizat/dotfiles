@@ -38,7 +38,10 @@ fi
 # Add the dotfiles
 echo "Linking dotfiles with Stow..."
 cd "$HOME/dotfiles"
+mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
 stow --adopt bash
+stow --adopt bin
+stow --adopt claude
 stow --adopt git
 stow --adopt ssh
 if [ ! -d ~/.agent ]; then # Antigravity doesn't like ~/.agent as a symlink

@@ -1,0 +1,32 @@
+{
+  "model": "opus",
+  "effortLevel": "high",
+  "autoMemoryEnabled": true,
+  "terminalTitleFromRename": false,
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/bin/claude_status.sh"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\e]0;claude@%s: %s\\a' \"$(hostname -s)\" \"$PWD\" > /dev/tty 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\e]0;%s@%s: %s\\a' \"$USER\" \"$(hostname -s)\" \"$PWD\" > /dev/tty 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
