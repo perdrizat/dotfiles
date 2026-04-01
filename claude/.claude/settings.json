@@ -24,6 +24,10 @@
           {
             "type": "command",
             "command": "printf '\\e]0;%s@%s: %s\\a' \"$USER\" \"$(hostname -s)\" \"$PWD\" > /dev/tty 2>/dev/null || true"
+          },
+          {
+            "type": "command",
+            "command": "bash ~/bin/check_changelog.sh"
           }
         ]
       }

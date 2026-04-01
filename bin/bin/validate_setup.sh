@@ -1,13 +1,15 @@
 #!/bin/bash
 # validate_setup.sh — Validate dotfiles setup, report status, print fix commands
 #
-# Checks everything managed by setup.sh:
-#   prerequisites, repo sync, shell config, stow symlinks,
-#   SSH, git, apt packages, agent config, and Claude Code settings.
+# Derives stow packages and symlinks at runtime from the filesystem.
+# Shared config (prereqs, apt packages) lives in ~/dotfiles/dotfiles.conf.
 #
 # Exit codes: 0 = all green, 1 = issues found
 
 set -uo pipefail
+
+DOTFILES_DIR="$HOME/dotfiles"
+source "$DOTFILES_DIR/setup.sh"
 
 # --- Colors ---
 RED='\033[0;31m'
@@ -56,7 +58,7 @@ check_perms() {
     local label="$1" path="$2" expected="$3" fix_id="$4"
     if [ -e "$path" ]; then
         local actual
-        actual=$(stat -c %a "$path")
+        actual=$(stat -Lc %a "$path")
         if [ "$actual" = "$expected" ]; then
             print_row "$label" "${GREEN}✓ $actual${NC}" ""
         else
@@ -66,6 +68,14 @@ check_perms() {
     fi
 }
 
+is_stow_skip() {
+    local name="$1"
+    for s in "${STOW_SKIP[@]}"; do
+        [[ "$name" == "$s" ]] && return 0
+    done
+    return 1
+}
+
 # ==========================================
 #  CHECKS
 # ==========================================
@@ -73,10 +83,10 @@ check_perms() {
 echo ""
 printf "${BOLD}Dotfiles Setup Validation${NC}\n"
 
-# --- Prerequisites ---
+# --- Prerequisites (from dotfiles.conf) ---
 print_header "Prerequisites"
 
-for cmd in git curl stow age; do
+for cmd in "${PREREQS[@]}"; do
     if command -v "$cmd" >/dev/null 2>&1; then
         ver=$(dpkg -s "$cmd" 2>/dev/null | grep '^Version:' | cut -d' ' -f2 || echo "installed")
         print_row "$cmd" "${GREEN}✓ Installed${NC}" "$ver"
@@ -89,8 +99,8 @@ done
 # --- Dotfiles Repo ---
 print_header "Dotfiles Repository"
 
-if [ -d "$HOME/dotfiles/.git" ]; then
-    cd "$HOME/dotfiles"
+if [ -d "$DOTFILES_DIR/.git" ]; then
+    cd "$DOTFILES_DIR"
     git fetch --quiet 2>/dev/null || true
     local_head=$(git rev-parse HEAD 2>/dev/null)
     remote_head=$(git rev-parse origin/main 2>/dev/null || echo "")
@@ -117,30 +127,64 @@ else
     missing_items+=("bashrc-loader")
 fi
 
-# --- Stow Symlinks ---
+# --- Stow Symlinks (auto-discovered from filesystem) ---
 print_header "Stow Symlinks"
 
-check_symlink ".bash_aliases" "$HOME/.bash_aliases" "$HOME/dotfiles/bash/.bash_aliases" "stow-bash"
-check_symlink ".bash_extra" "$HOME/.bash_extra" "$HOME/dotfiles/bash/.bash_extra" "stow-bash"
-check_symlink "~/bin" "$HOME/bin" "$HOME/dotfiles/bin/bin" "stow-bin"
-check_symlink ".claude/settings.json" "$HOME/.claude/settings.json" "$HOME/dotfiles/claude/.claude/settings.json" "stow-claude"
-check_symlink ".claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" "$HOME/dotfiles/claude/.claude/CLAUDE.md" "stow-claude"
-check_symlink ".gitconfig" "$HOME/.gitconfig" "$HOME/dotfiles/git/.gitconfig" "stow-git"
-check_symlink ".ssh/config" "$HOME/.ssh/config" "$HOME/dotfiles/ssh/.ssh/config" "stow-ssh"
-check_symlink ".ssh/id_ed25519.pub" "$HOME/.ssh/id_ed25519.pub" "$HOME/dotfiles/ssh/.ssh/id_ed25519.pub" "stow-ssh"
-check_symlink ".ssh/id_ed25519.age" "$HOME/.ssh/id_ed25519.age" "$HOME/dotfiles/ssh/.ssh/id_ed25519.age" "stow-ssh"
-check_symlink ".ssh/known_hosts" "$HOME/.ssh/known_hosts" "$HOME/dotfiles/ssh/.ssh/known_hosts" "stow-ssh"
+for pkg_dir in "$DOTFILES_DIR"/*/; do
+    pkg=$(basename "$pkg_dir")
+    is_stow_skip "$pkg" && continue
 
-# --- Agent Symlinks (manual, not stow) ---
-print_header "Agent Configuration"
+    # Collect top-level entries that stow may have folded into directory symlinks
+    folded_dirs=()
+    for entry in "$pkg_dir"*/; do
+        [ -d "$entry" ] || continue
+        relative="${entry#"$pkg_dir"}"
+        relative="${relative%/}"
+        target="$HOME/$relative"
+        if [ -L "$target" ]; then
+            actual=$(readlink -f "$target")
+            expected=$(readlink -f "$entry")
+            if [ "$actual" = "$expected" ]; then
+                print_row "$relative/" "${GREEN}✓ Linked${NC}" "→ ${entry#"$HOME"/}"
+                folded_dirs+=("$relative")
+                continue
+            fi
+        fi
+    done
 
-if [ -d "$HOME/.agent" ]; then
-    check_symlink ".agent/skills" "$HOME/.agent/skills" "$HOME/dotfiles/agent/.agent/skills" "agent-symlinks"
-    check_symlink ".agent/workflows" "$HOME/.agent/workflows" "$HOME/dotfiles/agent/.agent/workflows" "agent-symlinks"
+    while IFS= read -r -d '' file; do
+        relative="${file#"$pkg_dir"}"
+        # Skip repo-only files that stow shouldn't deploy
+        [[ "$(basename "$relative")" == .gitignore ]] && continue
+        # Skip files under directories already folded by stow
+        skip=false
+        for d in "${folded_dirs[@]+${folded_dirs[@]}}"; do
+            [[ "$relative" == "$d/"* ]] && skip=true && break
+        done
+        $skip && continue
+        target="$HOME/$relative"
+        check_symlink "$relative" "$target" "$file" "stow-$pkg"
+    done < <(find "$pkg_dir" -type f -print0 | sort -z)
+done
+
+# --- Gemini/Antigravity Symlinks (manual, not stow) ---
+print_header "Gemini/Antigravity Configuration"
+
+if [ -d "$HOME/.gemini" ]; then
+    check_symlink ".gemini/skills" "$HOME/.gemini/skills" "$DOTFILES_DIR/gemini/.gemini/skills" "gemini-symlinks"
+    check_symlink ".gemini/workflows" "$HOME/.gemini/workflows" "$DOTFILES_DIR/gemini/.gemini/workflows" "gemini-symlinks"
 else
-    print_row ".agent/ directory" "${RED}✗ Missing${NC}" "~/.agent"
-    missing_items+=("agent-symlinks")
+    print_row ".gemini/ directory" "${RED}✗ Missing${NC}" "~/.gemini"
+    missing_items+=("gemini-symlinks")
 fi
+
+# --- Global LLM Instructions ---
+print_header "Global LLM Instructions"
+
+GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
+check_symlink ".claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
+check_symlink ".codex/AGENTS.md" "$HOME/.codex/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
+check_symlink ".gemini/AGENTS.md" "$HOME/.gemini/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 
 # --- SSH ---
 print_header "SSH"
@@ -157,7 +201,7 @@ fi
 check_perms ".ssh/ permissions" "$HOME/.ssh" "700" "ssh-dir-perms"
 check_perms "Private key permissions" "$HOME/.ssh/id_ed25519" "600" "ssh-key-perms"
 check_perms ".ssh/config permissions" "$HOME/.ssh/config" "644" "ssh-config-perms"
-check_perms "dotfiles ssh dir" "$HOME/dotfiles/ssh/.ssh" "700" "ssh-stow-dir-perms"
+check_perms "dotfiles ssh dir" "$DOTFILES_DIR/ssh/.ssh" "700" "ssh-stow-dir-perms"
 
 # --- Git ---
 print_header "Git Configuration"
@@ -185,10 +229,10 @@ else
     missing_items+=("stow-git")
 fi
 
-# --- APT Packages ---
+# --- APT Packages (from dotfiles.conf) ---
 print_header "APT Packages"
 
-for pkg in build-essential python3-venv docker-compose-v2; do
+for pkg in "${APT_PACKAGES[@]}"; do
     if dpkg -s "$pkg" >/dev/null 2>&1; then
         ver=$(dpkg -s "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
         print_row "$pkg" "${GREEN}✓ Installed${NC}" "$ver"
@@ -207,26 +251,6 @@ if command -v claude >/dev/null 2>&1; then
 else
     print_row "Claude Code CLI" "${RED}✗ Missing${NC}" ""
     missing_items+=("claude-cli")
-fi
-
-if [ -f "$HOME/.claude/settings.json" ]; then
-    settings_issues=""
-    if ! grep -q "alwaysThinkingEnabled.*true" "$HOME/.claude/settings.json"; then
-        settings_issues="thinking"
-    fi
-    if ! grep -q "statusLine" "$HOME/.claude/settings.json"; then
-        settings_issues="${settings_issues:+$settings_issues, }statusLine"
-    fi
-
-    if [ -z "$settings_issues" ]; then
-        print_row "Claude Code settings" "${GREEN}✓ Configured${NC}" "Thinking + status line enabled"
-    else
-        print_row "Claude Code settings" "${YELLOW}⚠ Incomplete${NC}" "Missing: $settings_issues"
-        missing_items+=("claude-settings")
-    fi
-else
-    print_row "Claude Code settings" "${RED}✗ Missing${NC}" "~/.claude/settings.json"
-    missing_items+=("claude-settings")
 fi
 
 # ==========================================
@@ -276,16 +300,10 @@ for item in "${unique_items[@]}"; do
     esac
 done
 
-# 3. Stow symlinks (batch all needed packages)
+# 3. Stow symlinks (auto-collected from fix IDs)
 stow_packages=()
 for item in "${unique_items[@]}"; do
-    case "$item" in
-        stow-bash)   stow_packages+=("bash") ;;
-        stow-bin)    stow_packages+=("bin") ;;
-        stow-claude) stow_packages+=("claude") ;;
-        stow-ssh)    stow_packages+=("ssh") ;;
-        stow-git)    stow_packages+=("git") ;;
-    esac
+    case "$item" in stow-*) stow_packages+=("${item#stow-}") ;; esac
 done
 if [ ${#stow_packages[@]} -gt 0 ]; then
     printf "\n  ${CYAN}# Re-link stow packages${NC}\n"
@@ -322,12 +340,22 @@ if $ssh_fixes; then
     done
 fi
 
-# 6. Agent symlinks
+# 6. Gemini/Antigravity symlinks
 for item in "${unique_items[@]}"; do
     case "$item" in
-        agent-symlinks)
-            printf "\n  ${CYAN}# Link agent config${NC}\n"
-            echo "  mkdir -p ~/.agent && ln -sf ~/dotfiles/agent/.agent/skills ~/.agent/skills && ln -sf ~/dotfiles/agent/.agent/workflows ~/.agent/workflows"
+        gemini-symlinks)
+            printf "\n  ${CYAN}# Link Gemini/Antigravity config${NC}\n"
+            echo "  mkdir -p ~/.gemini && ln -sf ~/dotfiles/gemini/.gemini/skills ~/.gemini/skills && ln -sf ~/dotfiles/gemini/.gemini/workflows ~/.gemini/workflows"
+            break ;;
+    esac
+done
+
+# 6b. Global LLM instructions
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        llm-global)
+            printf "\n  ${CYAN}# Link global LLM instructions${NC}\n"
+            echo "  mkdir -p ~/.claude ~/.codex ~/.gemini && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.claude/CLAUDE.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.codex/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/AGENTS.md"
             break ;;
     esac
 done
@@ -348,10 +376,6 @@ for item in "${unique_items[@]}"; do
         claude-cli)
             printf "\n  ${CYAN}# Install Claude Code${NC}\n"
             echo "  npm install -g @anthropic-ai/claude-code"
-            ;;
-        claude-settings)
-            printf "\n  ${CYAN}# Configure Claude Code settings${NC}\n"
-            echo "  # Edit ~/.claude/settings.json — enable alwaysThinkingEnabled and statusLine"
             ;;
     esac
 done

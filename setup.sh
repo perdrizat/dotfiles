@@ -1,16 +1,28 @@
 #!/bin/bash
+# setup.sh — Bootstrap a fresh machine with dotfiles
+#
+# Must be self-contained: curl-piped before the repo exists.
+# validate_setup.sh sources this file for the shared variables below.
+
+DOTFILES_DIR="$HOME/dotfiles"
+
+# --- Shared variables (also used by validate_setup.sh) ---
+PREREQS=(git curl stow age)
+APT_PACKAGES=(build-essential python3-venv docker-compose-v2)
+STOW_SKIP=(.git agent gemini)
+
+# When sourced by validate_setup.sh, stop here
+[[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
 # Install the setup prerequisites if missing
-command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt update && sudo apt install -y git curl stow age; }
+command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt update && sudo apt install -y "${PREREQS[@]}"; }
 
 # Clone the repo if we aren't already in it
-if [ ! -d "$HOME/dotfiles" ]; then
+if [ ! -d "$DOTFILES_DIR" ]; then
     echo "Cloning dotfiles..."
     cd "$HOME" && git clone https://github.com/perdrizat/dotfiles.git
-    cd "$HOME/dotfiles"
-else
-    cd "$HOME/dotfiles"
 fi
+cd "$DOTFILES_DIR"
 
 # Create the sourcing snippet
 # We use a heredoc to define what needs to be added to .bashrc
@@ -35,20 +47,30 @@ else
     echo "Custom loader already exists in .bashrc, skipping..."
 fi
 
-# Add the dotfiles
+# Auto-discover and link stow packages
 echo "Linking dotfiles with Stow..."
-cd "$HOME/dotfiles"
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
-stow --adopt bash
-stow --adopt bin
-stow --adopt claude
-stow --adopt git
-stow --adopt ssh
-if [ ! -d ~/.agent ]; then # Antigravity doesn't like ~/.agent as a symlink
-    mkdir ~/.agent
-fi
-ln -sf ~/dotfiles/agent/.agent/skills ~/.agent/skills
-ln -sf ~/dotfiles/agent/.agent/workflows ~/.agent/workflows
+for pkg_dir in "$DOTFILES_DIR"/*/; do
+    pkg=$(basename "$pkg_dir")
+    skip=false
+    for s in "${STOW_SKIP[@]}"; do
+        [[ "$pkg" == "$s" ]] && skip=true && break
+    done
+    $skip && continue
+    stow --adopt "$pkg"
+done
+
+# Gemini/Antigravity symlinks (not stow-managed — ~/.gemini must be a real directory)
+mkdir -p ~/.gemini
+ln -sf "$DOTFILES_DIR/gemini/.gemini/skills" ~/.gemini/skills
+ln -sf "$DOTFILES_DIR/gemini/.gemini/workflows" ~/.gemini/workflows
+
+# Global LLM instructions — single source of truth symlinked into each agent's config dir
+GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
+mkdir -p ~/.claude ~/.codex ~/.gemini
+ln -sf "$GLOBAL_INSTRUCTIONS" ~/.claude/CLAUDE.md
+ln -sf "$GLOBAL_INSTRUCTIONS" ~/.codex/AGENTS.md
+ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/AGENTS.md
 
 # sort out SSH
 # Decrypt SSH key if it doesn't already exist
@@ -63,7 +85,7 @@ chmod 700 ~/dotfiles/ssh/.ssh
 
 # Update & install remaining utilities if not already present
 sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
-dpkg -s build-essential python3-venv docker-compose-v2 >/dev/null 2>&1 || sudo apt install -y build-essential python3-venv docker-compose-v2
+dpkg -s "${APT_PACKAGES[@]}" >/dev/null 2>&1 || sudo apt install -y "${APT_PACKAGES[@]}"
 
 echo "Setup complete! Restart your shell or run"
 echo '. ~/.bashrc'
