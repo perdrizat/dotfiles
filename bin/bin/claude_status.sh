@@ -76,8 +76,8 @@ week_util=$(echo "$data" | jq -r '.seven_day.utilization // 0')
 curr_pct=$(echo "$curr_util" | xargs printf "%.0f")
 week_pct=$(echo "$week_util" | xargs printf "%.0f")
 
-reset_curr=$(date -d "$(echo "$data" | jq -r '.five_hour.resets_at // now')" +"%I:%M%P")
-reset_week=$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +"%b %d, %I:%M%P")
+reset_curr=$(date -d "$(echo "$data" | jq -r '.five_hour.resets_at // now')" +"%H:%M")
+reset_week=$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +"%m/%d %H:%M")
 
 extra_enabled=$(echo "$data" | jq -r '.extra_usage.is_enabled // false')
 if [ "$extra_enabled" = "true" ]; then
@@ -111,5 +111,5 @@ printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}conte
 
 # Line 2: Global API status
 extra_color=$(active_color "$extra_enabled")
-printf "${GRAY}current:${RESET} %s${GRAY}, resets %s${RESET} ${GRAY}|${RESET} ${GRAY}weekly:${RESET} %s${GRAY}, resets %s${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
-    "$(draw_dots "$curr_pct")" "$reset_curr" "$(draw_dots "$week_pct")" "$reset_week" "$extra_display"
+printf "${GRAY}5h at %s:${RESET} %s ${GRAY}|${RESET} ${GRAY}7d at %s:${RESET} %s ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
+    "$reset_curr" "$(draw_dots "$curr_pct")" "$reset_week" "$(draw_dots "$week_pct")" "$extra_display"

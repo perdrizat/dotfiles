@@ -71,6 +71,7 @@ mkdir -p ~/.claude ~/.codex ~/.gemini
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.claude/CLAUDE.md
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.codex/AGENTS.md
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/AGENTS.md
+ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/GEMINI.md
 
 # sort out SSH
 # Decrypt SSH key if it doesn't already exist

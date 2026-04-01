@@ -185,6 +185,7 @@ GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
 check_symlink ".claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".codex/AGENTS.md" "$HOME/.codex/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".gemini/AGENTS.md" "$HOME/.gemini/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
+check_symlink ".gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 
 # --- SSH ---
 print_header "SSH"
@@ -355,7 +356,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         llm-global)
             printf "\n  ${CYAN}# Link global LLM instructions${NC}\n"
-            echo "  mkdir -p ~/.claude ~/.codex ~/.gemini && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.claude/CLAUDE.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.codex/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/AGENTS.md"
+            echo "  mkdir -p ~/.claude ~/.codex ~/.gemini && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.claude/CLAUDE.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.codex/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/GEMINI.md"
             break ;;
     esac
 done
