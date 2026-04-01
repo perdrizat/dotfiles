@@ -93,11 +93,11 @@ draw_dots() {
     local pct=$1
     local filled=$(( pct / 10 ))
     local color; color=$(pct_color "$pct")
-    local bar="${color}"
+    local bar="${color}${pct}% "
     for ((i=0; i<filled; i++)); do bar+="o"; done
     bar+="${GRAY}"
     for ((i=filled; i<10; i++)); do bar+="o"; done
-    bar+=" ${color}${pct}%${RESET}"
+    bar+="${RESET}"
     echo -ne "$bar"
 }
 
@@ -111,5 +111,5 @@ printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}conte
 
 # Line 2: Global API status
 extra_color=$(active_color "$extra_enabled")
-printf "${GRAY}5h at %s:${RESET} %s ${GRAY}|${RESET} ${GRAY}7d at %s:${RESET} %s ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
-    "$reset_curr" "$(draw_dots "$curr_pct")" "$reset_week" "$(draw_dots "$week_pct")" "$extra_display"
+printf "${GRAY}5h:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}7d:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
+    "$(draw_dots "$curr_pct")" "$reset_curr" "$(draw_dots "$week_pct")" "$reset_week" "$extra_display"

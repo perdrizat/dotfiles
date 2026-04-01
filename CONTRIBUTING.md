@@ -68,7 +68,9 @@ Reports green/yellow/red per item and prints fix commands in dependency order.
 - `agent/CONTRIBUTING.md` — Single source of truth for global LLM agent instructions
 - `bin/bin/validate_setup.sh` — Health check for the entire setup
 - `bin/bin/init_project.sh` — Bootstrap CONTRIBUTING.md + CLAUDE.md symlink + CHANGELOG.md in a new project
+- `bin/bin/validate_project.sh` — Checks agent file setup in any project (symlinks, .gitignore)
+- `bin/bin/pre_commit_check.sh` — Safety scan, doc freshness, changed files (used by prepare-to-commit workflow)
 - `bin/bin/check_changelog.sh` — Stop hook: warns when files changed but CHANGELOG.md wasn't updated
-- `bin/bin/test_check_changelog.sh` — Tests for the above
+- `bin/bin/test_check_changelog.sh`, `bin/bin/test_validate_project.sh`, `bin/bin/test_pre_commit_check.sh` — Tests
 - `bash/.bash_extra` — PATH, editor, prompt, WSL config
 - `bash/.bash_aliases` — Shell aliases

@@ -24,12 +24,8 @@ The goal is a changelog that helps the *next session* pick up where this one lef
 
 When asked to prepare a commit, run pre-commit checks, or help get code ready to commit, follow the steps below. **Never run `git add` or `git commit` — the user commits manually.**
 
-1. **Safety scan** — Review `git diff` and `git diff --cached` for accidentally staged secrets (`.env`, credentials, keys), debug remnants (`console.log`, `debugger`, `print()` left from debugging), and commented-out trial-and-error code.
-2. **Build, lint, test** — If the project has a build step, linter, or test suite, run them. Adapt to whatever tooling the project uses (`npm`, `cargo`, `pytest`, `go`, etc.). Report failures; do not proceed to step 5 until they pass.
-3. **Documentation freshness** — Check `git status` for whether these files (if they exist in the project) were modified alongside the other changes. Flag any that look stale and explain why:
-   - `CHANGELOG.md` — should have entries under `[Unreleased]` reflecting this session's changes
-   - `CONTRIBUTING.md` — should be updated if project structure, conventions, or key files changed
-   - `README.md` — should be updated if user-facing behaviour, setup, or usage changed
-4. **Promote changelog entries** — Move completed entries from `[Unreleased]` to a new `[YYYY-MM-DD]` section (today's date). Leave any in-progress or unfinished items under `[Unreleased]`.
-5. **Changed files** — Show `git status --short` and `git diff --stat` as a clear summary.
-6. **Commit message** — Based on the diff, suggest a short (under 72 chars) conventional commit message. If changes span multiple concerns, suggest splitting and provide a message for each.
+1. **Run `pre_commit_check.sh`** — This single script performs the safety scan (secrets, debug remnants), documentation freshness check (CHANGELOG.md, CONTRIBUTING.md, README.md), and lists all changed files. Review its output and act on any warnings before proceeding.
+2. **Build, lint, test** — If the project has a build step, linter, or test suite, run them. Adapt to whatever tooling the project uses (`npm`, `cargo`, `pytest`, `go`, etc.). Report failures; do not proceed until they pass.
+3. **Promote changelog entries** — Move completed entries from `[Unreleased]` to a new `[YYYY-MM-DD]` section (today's date). Leave any in-progress or unfinished items under `[Unreleased]`.
+4. **Commit message** — Based on the diff, suggest a short (under 72 chars) conventional commit message. If changes span multiple concerns, suggest splitting and provide a message for each.
+5. **Copy-paste commands** — Print the exact git commands the user can paste into the terminal. Use `git add` for new/modified files, `git mv` for renames, `git rm` for deletions, `git restore --staged` for files that should be excluded. End with `git commit -a -m "suggested commit message" && git push`. Format as a single fenced code block.

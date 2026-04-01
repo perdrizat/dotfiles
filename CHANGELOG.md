@@ -10,6 +10,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `bin/bin/validate_project.sh` — checks agent file symlinks and .gitignore in any project
+- `bin/bin/pre_commit_check.sh` — safety scan, doc freshness, changed files in one script
+- `bin/bin/test_validate_project.sh`, `bin/bin/test_pre_commit_check.sh` — tests for above
+
+### Changed
+
+- `claude_status.sh` line 2: `5h: 73% oooooooooo till 22:00 | 7d: ...` — percentages before bars, times after
+- Pre-commit workflow consolidated: safety/docs/files checks in `pre_commit_check.sh`, copy-paste git commands at the end
+- `agent/CONTRIBUTING.md`: changelog compression rules, streamlined pre-commit steps
+
+## [2026-04-01]
+
+### Added
+
 - `bin/bin/check_changelog.sh` — Stop hook that warns when files are modified but CHANGELOG.md is not
 - `bin/bin/test_check_changelog.sh` — 5 test scenarios for the Stop hook
 - `agent/CONTRIBUTING.md` — single source of truth for global LLM instructions (TDD, changelog compression, pre-commit checklist)
