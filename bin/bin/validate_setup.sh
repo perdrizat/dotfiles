@@ -340,15 +340,29 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
     fi
 fi
 
-# --- Claude Code ---
-print_header "Claude Code"
+# --- LLM Agents ---
+if [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_GEMINI_CLI" == true ]]; then
+    print_header "LLM Agents"
+fi
 
-if command -v claude >/dev/null 2>&1; then
-    claude_ver=$(claude --version 2>/dev/null || echo "unknown")
-    print_row "Claude Code CLI" "${GREEN}✓ Installed${NC}" "$claude_ver"
-else
-    print_row "Claude Code CLI" "${RED}✗ Missing${NC}" ""
-    missing_items+=("claude-cli")
+if [[ "$INSTALL_CLAUDE" == true ]]; then
+    if command -v claude >/dev/null 2>&1; then
+        claude_ver=$(claude --version 2>/dev/null || echo "unknown")
+        print_row "Claude Code CLI" "${GREEN}✓ Installed${NC}" "$claude_ver"
+    else
+        print_row "Claude Code CLI" "${RED}✗ Missing${NC}" ""
+        missing_items+=("claude-cli")
+    fi
+fi
+
+if [[ "$INSTALL_GEMINI_CLI" == true ]]; then
+    if command -v gemini >/dev/null 2>&1; then
+        gemini_ver=$(gemini --version 2>/dev/null || echo "unknown")
+        print_row "Gemini CLI" "${GREEN}✓ Installed${NC}" "$gemini_ver"
+    else
+        print_row "Gemini CLI" "${RED}✗ Missing${NC}" ""
+        missing_items+=("gemini-cli")
+    fi
 fi
 
 # ==========================================
@@ -478,7 +492,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         install-rust)
             printf "\n  ${CYAN}# Install Rust${NC}\n"
-            echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy rustfmt"
+            echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy,rustfmt"
             ;;
         install-fnm)
             printf "\n  ${CYAN}# Install fnm${NC}\n"
@@ -511,12 +525,16 @@ for item in "${unique_items[@]}"; do
     esac
 done
 
-# 10. Claude Code
+# 10. LLM agents
 for item in "${unique_items[@]}"; do
     case "$item" in
         claude-cli)
             printf "\n  ${CYAN}# Install Claude Code${NC}\n"
             echo "  curl -fsSL https://claude.ai/install.sh | bash"
+            ;;
+        gemini-cli)
+            printf "\n  ${CYAN}# Install Gemini CLI${NC}\n"
+            echo "  npm install -g @google/gemini-cli"
             ;;
     esac
 done

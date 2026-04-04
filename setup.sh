@@ -7,17 +7,21 @@
 DOTFILES_DIR="$HOME/dotfiles"
 
 # --- Shared variables (also used by validate_setup.sh) ---
-PREREQS=(git curl stow age unzip)
+PREREQS=(git curl stow age unzip jq)
 APT_PACKAGES=(build-essential)
 STOW_SKIP=(.git agent)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
-# --- Dev toolchain toggles (set false to skip) ---
-INSTALL_RUST=false	# rustup → cargo, rustc, rustfmt, clippy
-INSTALL_NODE=true	# fnm → latest LTS Node + npm
-INSTALL_ICP=false	# dfxvm → dfx + ic-admin
-INSTALL_PYTHON=false	# apt python3 + python3-venv
-INSTALL_DOCKER=true	# apt docker-compose-v2
+# --- Dev toolchain toggles (set false to skip, overridable via env) ---
+INSTALL_RUST=${INSTALL_RUST:-false}	# rustup → cargo, rustc, rustfmt, clippy
+INSTALL_NODE=${INSTALL_NODE:-true}	# fnm → latest LTS Node + npm
+INSTALL_ICP=${INSTALL_ICP:-false}	# dfxvm → dfx + ic-admin
+INSTALL_PYTHON=${INSTALL_PYTHON:-false}	# apt python3 + python3-venv
+INSTALL_DOCKER=${INSTALL_DOCKER:-true}	# apt docker-compose-v2
+
+# --- LLM agent toggles (set false to skip, overridable via env) ---
+INSTALL_CLAUDE=${INSTALL_CLAUDE:-true}	# Claude Code CLI
+INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI:-false}	# Gemini CLI (npm: @google/gemini-cli)
 
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
@@ -122,7 +126,7 @@ dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || sudo apt install -y "${apt_instal
 
 if [[ "$INSTALL_RUST" == true ]] && ! command -v rustup >/dev/null 2>&1; then
     echo "Installing Rust via rustup..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy rustfmt
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy,rustfmt
     source "$HOME/.cargo/env"
 fi
 
@@ -151,10 +155,15 @@ if [[ "$INSTALL_ICP" == true ]]; then
     fi
 fi
 
-# --- Claude Code ---
-if ! command -v claude >/dev/null 2>&1; then
+# --- LLM agents ---
+if [[ "$INSTALL_CLAUDE" == true ]] && ! command -v claude >/dev/null 2>&1; then
     echo "Installing Claude Code..."
     curl -fsSL https://claude.ai/install.sh | bash
+fi
+
+if [[ "$INSTALL_GEMINI_CLI" == true ]] && ! command -v gemini >/dev/null 2>&1; then
+    echo "Installing Gemini CLI..."
+    npm install -g @google/gemini-cli
 fi
 
 echo "Setup complete! Restart your shell or run"

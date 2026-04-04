@@ -38,6 +38,5 @@
     "command": "bash ~/bin/claude_status.sh"
   },
   "terminalTitleFromRename": false,
-  "effortLevel": "medium",
   "autoMemoryEnabled": true
 }

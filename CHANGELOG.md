@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-04-04]
+
+### Added
+
+- `INSTALL_CLAUDE` and `INSTALL_GEMINI_CLI` toggles in `setup.sh` — Claude Code and Gemini CLI are now configurable like Rust, Node, etc.
+- `validate_setup.sh` checks and fix commands for Claude Code and Gemini CLI, conditional on toggles
+- `test_setup_toggles.sh` — tests for the new LLM agent toggles
+- All toggles are now overridable via environment variables (`${VAR:-default}` pattern)
+
 ### Fixed
 
 - `validate_setup.sh`: detect stow-folded directory symlinks at any depth (fixes gemini false positives)
