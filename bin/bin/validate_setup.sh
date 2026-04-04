@@ -145,10 +145,9 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
     pkg=$(basename "$pkg_dir")
     is_stow_skip "$pkg" && continue
 
-    # Collect top-level entries that stow may have folded into directory symlinks
+    # Collect directories that stow may have folded into directory symlinks (any depth)
     folded_dirs=()
-    for entry in "$pkg_dir"*/; do
-        [ -d "$entry" ] || continue
+    while IFS= read -r -d '' entry; do
         relative="${entry#"$pkg_dir"}"
         relative="${relative%/}"
         target="$HOME/$relative"
@@ -158,10 +157,9 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
             if [ "$actual" = "$expected" ]; then
                 print_row "$relative/" "${GREEN}✓ Linked${NC}" "→ ${entry#"$HOME"/}"
                 folded_dirs+=("$relative")
-                continue
             fi
         fi
-    done
+    done < <(find "$pkg_dir" -mindepth 1 -type d -print0 | sort -z)
 
     while IFS= read -r -d '' file; do
         relative="${file#"$pkg_dir"}"
@@ -192,16 +190,6 @@ for script in "$HOME"/bin/*.sh; do
         missing_items+=("bin-exec")
     fi
 done
-
-# --- Gemini/Antigravity Symlinks (manual, not stow) ---
-print_header "Gemini/Antigravity Configuration"
-
-if [ -d "$HOME/.gemini" ]; then
-    check_symlink ".gemini/skills" "$HOME/.gemini/skills" "$DOTFILES_DIR/gemini/.gemini/skills" "gemini-symlinks"
-else
-    print_row ".gemini/ directory" "${RED}✗ Missing${NC}" "~/.gemini"
-    missing_items+=("gemini-symlinks")
-fi
 
 # --- Global LLM Instructions ---
 print_header "Global LLM Instructions"
@@ -456,17 +444,7 @@ if $ssh_fixes; then
     done
 fi
 
-# 6. Gemini/Antigravity symlinks
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        gemini-symlinks)
-            printf "\n  ${CYAN}# Link Gemini/Antigravity config${NC}\n"
-            echo "  mkdir -p ~/.gemini && ln -sf ~/dotfiles/gemini/.gemini/skills ~/.gemini/skills"
-            break ;;
-    esac
-done
-
-# 6b. Global LLM instructions
+# 6. Global LLM instructions
 for item in "${unique_items[@]}"; do
     case "$item" in
         llm-global)

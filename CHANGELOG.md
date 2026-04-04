@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `validate_setup.sh`: detect stow-folded directory symlinks at any depth (fixes gemini false positives)
+- `validate_setup.sh`: remove hardcoded gemini check — fully covered by stow symlink loop
+
 ## [2026-04-04]
 
 ### Added
