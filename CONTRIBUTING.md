@@ -12,14 +12,14 @@ Each top-level directory is a stow package. Running `stow --adopt <package>` fro
 | `bin`    | `~/bin/` scripts (status, validate, init) |
 | `claude` | `~/.claude/settings.json`           |
 | `git`    | `.gitconfig`                        |
-| `ssh`    | `.ssh/config`, keys, known_hosts    |
+| `ssh`    | `.ssh/config`, `.ssh/id_ed25519.age` |
 
 These directories are **not** stow packages — their symlinks are created manually in `setup.sh`:
 
 | Directory  | Purpose                             |
 |------------|-------------------------------------|
 | `agent/`   | Global LLM instructions (`CONTRIBUTING.md`), symlinked into each agent's config dir |
-| `gemini/`  | `~/.gemini/skills`, `~/.gemini/workflows` (Google Antigravity) |
+| `gemini/`  | `~/.gemini/skills` (Google Antigravity) |
 
 ## LLM agent instructions
 

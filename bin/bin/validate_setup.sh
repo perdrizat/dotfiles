@@ -178,12 +178,25 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
     done < <(find "$pkg_dir" -type f -print0 | sort -z)
 done
 
+# --- ~/bin scripts executable ---
+print_header "Executable Scripts"
+
+for script in "$HOME"/bin/*.sh; do
+    [ -f "$script" ] || continue
+    name=$(basename "$script")
+    if [ -x "$script" ]; then
+        print_row "$name" "${GREEN}✓ Executable${NC}" ""
+    else
+        print_row "$name" "${YELLOW}⚠ Not executable${NC}" ""
+        missing_items+=("bin-exec")
+    fi
+done
+
 # --- Gemini/Antigravity Symlinks (manual, not stow) ---
 print_header "Gemini/Antigravity Configuration"
 
 if [ -d "$HOME/.gemini" ]; then
     check_symlink ".gemini/skills" "$HOME/.gemini/skills" "$DOTFILES_DIR/gemini/.gemini/skills" "gemini-symlinks"
-    check_symlink ".gemini/workflows" "$HOME/.gemini/workflows" "$DOTFILES_DIR/gemini/.gemini/workflows" "gemini-symlinks"
 else
     print_row ".gemini/ directory" "${RED}✗ Missing${NC}" "~/.gemini"
     missing_items+=("gemini-symlinks")
@@ -389,7 +402,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         gemini-symlinks)
             printf "\n  ${CYAN}# Link Gemini/Antigravity config${NC}\n"
-            echo "  mkdir -p ~/.gemini && ln -sf ~/dotfiles/gemini/.gemini/skills ~/.gemini/skills && ln -sf ~/dotfiles/gemini/.gemini/workflows ~/.gemini/workflows"
+            echo "  mkdir -p ~/.gemini && ln -sf ~/dotfiles/gemini/.gemini/skills ~/.gemini/skills"
             break ;;
     esac
 done
@@ -404,7 +417,17 @@ for item in "${unique_items[@]}"; do
     esac
 done
 
-# 7. APT packages
+# 7. Executable scripts
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        bin-exec)
+            printf "\n  ${CYAN}# Fix script permissions${NC}\n"
+            echo "  chmod +x ~/bin/*.sh"
+            break ;;
+    esac
+done
+
+# 8. APT packages
 apt_pkgs=()
 for item in "${unique_items[@]}"; do
     case "$item" in apt-*) apt_pkgs+=("${item#apt-}") ;; esac

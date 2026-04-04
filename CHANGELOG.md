@@ -6,10 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Fixed
-
-- `validate_setup.sh` SSH checks: replace age decryption with sha256sum of .age file, fix pub key comparison stripping comment field
-
 ## [2026-04-04]
 
 ### Changed
@@ -17,12 +13,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Stop tracking `id_ed25519.pub` and `known_hosts` in git (machine-specific, derived from private key)
 - `setup.sh` regenerates public key from private key after decryption
 - `setup.sh` switches dotfiles remote from HTTPS to SSH after keys are set up
+- `setup.sh` ensures `~/bin/*.sh` scripts are executable after stow
+- Remove stale `~/.gemini/workflows` symlink from setup and validate (directory doesn't exist)
+- Auto-allow `pre_commit_check.sh`, `validate_setup.sh`, `validate_project.sh` in Claude Code permissions
 - `validate_setup.sh` checks private key matches `.age` source and public key matches private key
 - `validate_setup.sh` checks dotfiles remote is SSH (not HTTPS)
+- `validate_setup.sh` checks `~/bin/*.sh` scripts are executable
+- Update `CONTRIBUTING.md` to reflect current ssh package contents and gemini structure
 
 ### Fixed
 
 - `claude_status.sh` extra credits display: convert cents to dollars, show limit as whole dollars
+- `validate_setup.sh` SSH checks: replace age decryption with sha256sum, fix pub key comparison
 
 ### Added
 

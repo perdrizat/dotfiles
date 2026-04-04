@@ -1,11 +1,11 @@
 {
   "model": "opus",
-  "effortLevel": "high",
-  "autoMemoryEnabled": true,
-  "terminalTitleFromRename": false,
-  "statusLine": {
-    "type": "command",
-    "command": "bash ~/bin/claude_status.sh"
+  "permissions": {
+    "allow": [
+      "Bash(pre_commit_check.sh*)",
+      "Bash(validate_setup.sh*)",
+      "Bash(validate_project.sh*)"
+    ]
   },
   "hooks": {
     "SessionStart": [
@@ -32,5 +32,12 @@
         ]
       }
     ]
-  }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash ~/bin/claude_status.sh"
+  },
+  "terminalTitleFromRename": false,
+  "effortLevel": "medium",
+  "autoMemoryEnabled": true
 }

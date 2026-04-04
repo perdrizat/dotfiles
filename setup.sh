@@ -61,10 +61,12 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
     stow --adopt "$pkg"
 done
 
+# Ensure ~/bin scripts are executable
+chmod +x "$HOME"/bin/*.sh 2>/dev/null || true
+
 # Gemini/Antigravity symlinks (not stow-managed — ~/.gemini must be a real directory)
 mkdir -p ~/.gemini
 ln -sf "$DOTFILES_DIR/gemini/.gemini/skills" ~/.gemini/skills
-ln -sf "$DOTFILES_DIR/gemini/.gemini/workflows" ~/.gemini/workflows
 
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
 GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
