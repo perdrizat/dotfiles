@@ -1,5 +1,4 @@
 {
-  "model": "opus",
   "permissions": {
     "allow": [
       "Bash(pre_commit_check.sh*)",
@@ -7,6 +6,7 @@
       "Bash(validate_project.sh*)"
     ]
   },
+  "model": "opus[1m]",
   "hooks": {
     "SessionStart": [
       {
