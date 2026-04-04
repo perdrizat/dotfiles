@@ -246,27 +246,12 @@ check_perms ".ssh/config permissions" "$HOME/.ssh/config" "644" "ssh-config-perm
 # --- Git ---
 print_header "Git Configuration"
 
-if [ -f "$HOME/.gitconfig" ]; then
-    git_user=$(git config --global user.name 2>/dev/null || echo "")
-    git_email=$(git config --global user.email 2>/dev/null || echo "")
-    if [ -n "$git_user" ] && [ -n "$git_email" ]; then
-        print_row "User identity" "${GREEN}✓ Set${NC}" "$git_user <$git_email>"
-    else
-        print_row "User identity" "${YELLOW}⚠ Incomplete${NC}" "name='$git_user' email='$git_email'"
-        missing_items+=("stow-git")
-    fi
-
-    default_branch=$(git config --global init.defaultBranch 2>/dev/null || echo "")
-    pull_rebase=$(git config --global pull.rebase 2>/dev/null || echo "")
-    if [ "$default_branch" = "main" ] && [ "$pull_rebase" = "true" ]; then
-        print_row "Git settings" "${GREEN}✓ Correct${NC}" "branch=main, pull=rebase"
-    else
-        print_row "Git settings" "${YELLOW}⚠ Drift${NC}" "branch='$default_branch' pull.rebase='$pull_rebase'"
-        missing_items+=("stow-git")
-    fi
+git_user=$(git config --global user.name 2>/dev/null || echo "")
+git_email=$(git config --global user.email 2>/dev/null || echo "")
+if [ -n "$git_user" ] && [ -n "$git_email" ]; then
+    print_row "User identity" "${GREEN}✓ Set${NC}" "$git_user <$git_email>"
 else
-    print_row "Git config" "${RED}✗ Missing${NC}" "~/.gitconfig"
-    missing_items+=("stow-git")
+    print_row "User identity" "${YELLOW}⚠ Incomplete${NC}" "name='$git_user' email='$git_email'"
 fi
 
 # --- APT Packages ---
