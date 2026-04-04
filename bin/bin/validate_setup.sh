@@ -165,8 +165,9 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
 
     while IFS= read -r -d '' file; do
         relative="${file#"$pkg_dir"}"
-        # Skip repo-only files that stow shouldn't deploy
+        # Skip repo-only files and gitignored files (e.g. generated keys, known_hosts)
         [[ "$(basename "$relative")" == .gitignore ]] && continue
+        git -C "$DOTFILES_DIR" check-ignore -q "$file" 2>/dev/null && continue
         # Skip files under directories already folded by stow
         skip=false
         for d in "${folded_dirs[@]+${folded_dirs[@]}}"; do
@@ -442,7 +443,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         claude-cli)
             printf "\n  ${CYAN}# Install Claude Code${NC}\n"
-            echo "  npm install -g @anthropic-ai/claude-code"
+            echo "  curl -fsSL https://claude.ai/install.sh | sh"
             ;;
     esac
 done
