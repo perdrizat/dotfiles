@@ -210,21 +210,21 @@ else
     print_row "SSH private key" "${RED}✗ Missing${NC}" "No key or .age file"
 fi
 
-# Verify private key matches the .age source (same key on all machines)
-if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.age" ]; then
-    age_fp=$(age --decrypt "$HOME/.ssh/id_ed25519.age" 2>/dev/null | ssh-keygen -l -f - 2>/dev/null)
-    key_fp=$(ssh-keygen -l -f "$HOME/.ssh/id_ed25519" 2>/dev/null)
-    if [ -n "$age_fp" ] && [ "$age_fp" = "$key_fp" ]; then
-        print_row "Key matches .age source" "${GREEN}✓ Match${NC}" "${key_fp%% *}"
+# Verify .age file matches the repo copy (same encrypted key on all machines)
+if [ -f "$HOME/.ssh/id_ed25519.age" ] && [ -f "$DOTFILES_DIR/ssh/.ssh/id_ed25519.age" ]; then
+    deployed_sum=$(sha256sum "$HOME/.ssh/id_ed25519.age" | cut -d' ' -f1)
+    repo_sum=$(sha256sum "$DOTFILES_DIR/ssh/.ssh/id_ed25519.age" | cut -d' ' -f1)
+    if [ "$deployed_sum" = "$repo_sum" ]; then
+        print_row ".age matches repo" "${GREEN}✓ Match${NC}" "${deployed_sum:0:12}…"
     else
-        print_row "Key matches .age source" "${RED}✗ Mismatch${NC}" "Private key differs from .age file"
-        missing_items+=("ssh-rekey")
+        print_row ".age matches repo" "${RED}✗ Mismatch${NC}" "Deployed .age differs from repo"
+        missing_items+=("stow-ssh")
     fi
 fi
 
 # Verify public key matches private key
 if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
-    priv_pub=$(ssh-keygen -y -f "$HOME/.ssh/id_ed25519" 2>/dev/null)
+    priv_pub=$(ssh-keygen -y -f "$HOME/.ssh/id_ed25519" 2>/dev/null | cut -d' ' -f1,2)
     disk_pub=$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub" 2>/dev/null)
     if [ "$priv_pub" = "$disk_pub" ]; then
         print_row "Public key matches private" "${GREEN}✓ Match${NC}" ""
@@ -375,7 +375,6 @@ if $ssh_fixes; then
     for item in "${unique_items[@]}"; do
         case "$item" in
             ssh-decrypt)        echo "  age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519" ;;
-            ssh-rekey)          echo "  rm ~/.ssh/id_ed25519 && age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519" ;;
             ssh-regen-pub)      echo "  ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
             ssh-dir-perms)      echo "  chmod 700 ~/.ssh" ;;
             ssh-stow-dir-perms) echo "  chmod 700 ~/dotfiles/ssh/.ssh" ;;

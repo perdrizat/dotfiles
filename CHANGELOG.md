@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `validate_setup.sh` SSH checks: replace age decryption with sha256sum of .age file, fix pub key comparison stripping comment field
+
 ## [2026-04-04]
 
 ### Changed
