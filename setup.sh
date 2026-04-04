@@ -126,12 +126,17 @@ if [[ "$INSTALL_RUST" == true ]] && ! command -v rustup >/dev/null 2>&1; then
     source "$HOME/.cargo/env"
 fi
 
-if [[ "$INSTALL_NODE" == true ]] && ! command -v fnm >/dev/null 2>&1; then
-    echo "Installing fnm (Fast Node Manager)..."
-    curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
-    export PATH="$HOME/.local/share/fnm:$PATH"
+if [[ "$INSTALL_NODE" == true ]]; then
+    if ! command -v fnm >/dev/null 2>&1; then
+        echo "Installing fnm (Fast Node Manager)..."
+        curl -fsSL https://fnm.vercel.app/install | bash
+        source ~/.bashrc
+    fi
     eval "$(fnm env)"
     fnm install --lts
+    npm install -g vite
+    mkdir -p ~/.local/share/bash-completion/completions
+    fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
 fi
 
 if [[ "$INSTALL_ICP" == true ]]; then
