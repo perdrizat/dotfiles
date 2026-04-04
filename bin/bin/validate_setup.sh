@@ -284,10 +284,15 @@ if [[ "$INSTALL_NODE" == true ]]; then
     # Ensure fnm is on PATH for this check
     [[ -d "$HOME/.local/share/fnm" ]] && export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
     if command -v fnm >/dev/null 2>&1; then
-        node_ver=$(node --version 2>/dev/null || echo "no node installed")
-        print_row "Node (fnm)" "${GREEN}✓ Installed${NC}" "$node_ver"
+        print_row "fnm" "${GREEN}✓ Installed${NC}" "$(fnm --version 2>/dev/null)"
     else
-        print_row "Node (fnm)" "${RED}✗ Missing${NC}" ""
+        print_row "fnm" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-fnm")
+    fi
+    if command -v node >/dev/null 2>&1; then
+        print_row "Node" "${GREEN}✓ Installed${NC}" "$(node --version 2>/dev/null)"
+    else
+        print_row "Node" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-node")
     fi
     if command -v vite >/dev/null 2>&1; then
@@ -475,13 +480,17 @@ for item in "${unique_items[@]}"; do
             printf "\n  ${CYAN}# Install Rust${NC}\n"
             echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy rustfmt"
             ;;
+        install-fnm)
+            printf "\n  ${CYAN}# Install fnm${NC}\n"
+            echo "  curl -fsSL https://fnm.vercel.app/install | bash"
+            ;;
         install-node)
-            printf "\n  ${CYAN}# Install fnm + Node LTS${NC}\n"
-            echo "  curl -fsSL https://fnm.vercel.app/install | bash && export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && fnm install --lts"
+            printf "\n  ${CYAN}# Install Node LTS${NC}\n"
+            echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && fnm install --lts"
             ;;
         install-vite)
             printf "\n  ${CYAN}# Install vite${NC}\n"
-            echo "  npm install -g vite"
+            echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && npm install -g vite"
             ;;
         install-icp)
             printf "\n  ${CYAN}# Install dfxvm (DFINITY SDK)${NC}\n"
