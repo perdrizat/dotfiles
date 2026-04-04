@@ -531,7 +531,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         claude-cli)
             printf "\n  ${CYAN}# Install Claude Code${NC}\n"
-            echo "  curl -fsSL https://claude.ai/install.sh | sh"
+            echo "  curl -fsSL https://claude.ai/install.sh | bash"
             ;;
     esac
 done

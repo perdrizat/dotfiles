@@ -7,7 +7,7 @@
 DOTFILES_DIR="$HOME/dotfiles"
 
 # --- Shared variables (also used by validate_setup.sh) ---
-PREREQS=(git curl stow age)
+PREREQS=(git curl stow age unzip)
 APT_PACKAGES=(build-essential)
 STOW_SKIP=(.git agent)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
@@ -148,7 +148,7 @@ fi
 # --- Claude Code ---
 if ! command -v claude >/dev/null 2>&1; then
     echo "Installing Claude Code..."
-    curl -fsSL https://claude.ai/install.sh | sh
+    curl -fsSL https://claude.ai/install.sh | bash
 fi
 
 echo "Setup complete! Restart your shell or run"
