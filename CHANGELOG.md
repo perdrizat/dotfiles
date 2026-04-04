@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-04-04]
+
+### Changed
+
+- Stop tracking `id_ed25519.pub` and `known_hosts` in git (machine-specific, derived from private key)
+- `setup.sh` regenerates public key from private key after decryption
+- `setup.sh` switches dotfiles remote from HTTPS to SSH after keys are set up
+- `validate_setup.sh` checks private key matches `.age` source and public key matches private key
+- `validate_setup.sh` checks dotfiles remote is SSH (not HTTPS)
+
+### Fixed
+
+- `claude_status.sh` extra credits display: convert cents to dollars, show limit as whole dollars
+
+### Added
+
+- `gr` alias for `git restore`
+
 ## [2026-04-01]
 
 ### Added

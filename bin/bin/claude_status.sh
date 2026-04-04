@@ -81,9 +81,11 @@ reset_week=$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +"%
 
 extra_enabled=$(echo "$data" | jq -r '.extra_usage.is_enabled // false')
 if [ "$extra_enabled" = "true" ]; then
-    used_ext=$(echo "$data" | jq -r '.extra_usage.used_credits // 0')
-    limit_ext=$(echo "$data" | jq -r '.extra_usage.monthly_limit // 0')
-    extra_display=$(printf "\$%.2f/\$%.2f" "$used_ext" "$limit_ext")
+    used_cents=$(echo "$data" | jq -r '.extra_usage.used_credits // 0')
+    limit_cents=$(echo "$data" | jq -r '.extra_usage.monthly_limit // 0')
+    used_dollars=$(echo "scale=2; $used_cents / 100" | bc -l)
+    limit_dollars=$(echo "$limit_cents / 100" | bc)
+    extra_display=$(printf "\$%s/\$%s" "$used_dollars" "$limit_dollars")
 else
     extra_display="disabled"
 fi

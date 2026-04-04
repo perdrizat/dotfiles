@@ -10,6 +10,7 @@ DOTFILES_DIR="$HOME/dotfiles"
 PREREQS=(git curl stow age)
 APT_PACKAGES=(build-essential python3-venv docker-compose-v2)
 STOW_SKIP=(.git agent gemini)
+DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
@@ -80,9 +81,21 @@ if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
     age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age
     chmod 600 ~/.ssh/id_ed25519
 fi
+# Regenerate public key from private key (pub key is not tracked in git)
+if [ -f ~/.ssh/id_ed25519 ]; then
+    echo "Regenerating public key from private key..."
+    ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+fi
 echo "Fixing remaining SSH permissions..."
 chmod 700 ~/dotfiles/ssh/.ssh
 [ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
+
+# Switch dotfiles remote from HTTPS to SSH now that keys are in place
+current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
+if [ "$current_remote" != "$DOTFILES_SSH_REMOTE" ]; then
+    echo "Switching dotfiles remote to SSH..."
+    git -C "$DOTFILES_DIR" remote set-url origin "$DOTFILES_SSH_REMOTE"
+fi
 
 # Update & install remaining utilities if not already present
 sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y

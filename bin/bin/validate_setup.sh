@@ -117,6 +117,17 @@ else
     missing_items+=("dotfiles-clone")
 fi
 
+# Check remote is SSH (not HTTPS)
+if [ -d "$DOTFILES_DIR/.git" ]; then
+    current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
+    if [ "$current_remote" = "$DOTFILES_SSH_REMOTE" ]; then
+        print_row "Remote URL" "${GREEN}✓ SSH${NC}" "$current_remote"
+    else
+        print_row "Remote URL" "${YELLOW}⚠ Not SSH${NC}" "$current_remote"
+        missing_items+=("dotfiles-ssh-remote")
+    fi
+fi
+
 # --- Shell Configuration ---
 print_header "Shell Configuration"
 
@@ -197,6 +208,33 @@ elif [ -f "$HOME/.ssh/id_ed25519.age" ]; then
     missing_items+=("ssh-decrypt")
 else
     print_row "SSH private key" "${RED}✗ Missing${NC}" "No key or .age file"
+fi
+
+# Verify private key matches the .age source (same key on all machines)
+if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.age" ]; then
+    age_fp=$(age --decrypt "$HOME/.ssh/id_ed25519.age" 2>/dev/null | ssh-keygen -l -f - 2>/dev/null)
+    key_fp=$(ssh-keygen -l -f "$HOME/.ssh/id_ed25519" 2>/dev/null)
+    if [ -n "$age_fp" ] && [ "$age_fp" = "$key_fp" ]; then
+        print_row "Key matches .age source" "${GREEN}✓ Match${NC}" "${key_fp%% *}"
+    else
+        print_row "Key matches .age source" "${RED}✗ Mismatch${NC}" "Private key differs from .age file"
+        missing_items+=("ssh-rekey")
+    fi
+fi
+
+# Verify public key matches private key
+if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
+    priv_pub=$(ssh-keygen -y -f "$HOME/.ssh/id_ed25519" 2>/dev/null)
+    disk_pub=$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub" 2>/dev/null)
+    if [ "$priv_pub" = "$disk_pub" ]; then
+        print_row "Public key matches private" "${GREEN}✓ Match${NC}" ""
+    else
+        print_row "Public key matches private" "${RED}✗ Mismatch${NC}" "Regenerate with ssh-keygen -y"
+        missing_items+=("ssh-regen-pub")
+    fi
+elif [ -f "$HOME/.ssh/id_ed25519" ] && [ ! -f "$HOME/.ssh/id_ed25519.pub" ]; then
+    print_row "Public key" "${YELLOW}⚠ Missing${NC}" "Regenerate from private key"
+    missing_items+=("ssh-regen-pub")
 fi
 
 check_perms ".ssh/ permissions" "$HOME/.ssh" "700" "ssh-dir-perms"
@@ -298,6 +336,10 @@ for item in "${unique_items[@]}"; do
             printf "\n  ${CYAN}# Sync dotfiles${NC}\n"
             echo "  cd ~/dotfiles && git pull --rebase"
             ;;
+        dotfiles-ssh-remote)
+            printf "\n  ${CYAN}# Switch dotfiles remote to SSH${NC}\n"
+            echo "  git -C ~/dotfiles remote set-url origin $DOTFILES_SSH_REMOTE"
+            ;;
     esac
 done
 
@@ -333,6 +375,8 @@ if $ssh_fixes; then
     for item in "${unique_items[@]}"; do
         case "$item" in
             ssh-decrypt)        echo "  age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519" ;;
+            ssh-rekey)          echo "  rm ~/.ssh/id_ed25519 && age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519" ;;
+            ssh-regen-pub)      echo "  ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
             ssh-dir-perms)      echo "  chmod 700 ~/.ssh" ;;
             ssh-stow-dir-perms) echo "  chmod 700 ~/dotfiles/ssh/.ssh" ;;
             ssh-key-perms)      echo "  chmod 600 ~/.ssh/id_ed25519" ;;
