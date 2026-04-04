@@ -281,12 +281,21 @@ if [[ "$INSTALL_RUST" == true ]]; then
 fi
 
 if [[ "$INSTALL_NODE" == true ]]; then
+    # Ensure fnm is on PATH for this check
+    [[ -d "$HOME/.local/share/fnm" ]] && export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
     if command -v fnm >/dev/null 2>&1; then
         node_ver=$(node --version 2>/dev/null || echo "no node installed")
         print_row "Node (fnm)" "${GREEN}✓ Installed${NC}" "$node_ver"
     else
         print_row "Node (fnm)" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-node")
+    fi
+    if command -v vite >/dev/null 2>&1; then
+        vite_ver=$(vite --version 2>/dev/null | tail -1)
+        print_row "vite" "${GREEN}✓ Installed${NC}" "$vite_ver"
+    else
+        print_row "vite" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-vite")
     fi
 fi
 
@@ -468,7 +477,11 @@ for item in "${unique_items[@]}"; do
             ;;
         install-node)
             printf "\n  ${CYAN}# Install fnm + Node LTS${NC}\n"
-            echo "  curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell && fnm install --lts"
+            echo "  curl -fsSL https://fnm.vercel.app/install | bash && export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && fnm install --lts"
+            ;;
+        install-vite)
+            printf "\n  ${CYAN}# Install vite${NC}\n"
+            echo "  npm install -g vite"
             ;;
         install-icp)
             printf "\n  ${CYAN}# Install dfxvm (DFINITY SDK)${NC}\n"

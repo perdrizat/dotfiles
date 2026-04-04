@@ -130,9 +130,10 @@ if [[ "$INSTALL_NODE" == true ]]; then
     if ! command -v fnm >/dev/null 2>&1; then
         echo "Installing fnm (Fast Node Manager)..."
         curl -fsSL https://fnm.vercel.app/install | bash
-        source ~/.bashrc
     fi
-    eval "$(fnm env)"
+    # Make fnm available in this script (bashrc guard blocks source in non-interactive shells)
+    export PATH="$HOME/.local/share/fnm:$PATH"
+    eval "$(fnm env --shell bash)"
     fnm install --lts
     npm install -g vite
     mkdir -p ~/.local/share/bash-completion/completions
