@@ -254,7 +254,6 @@ fi
 check_perms ".ssh/ permissions" "$HOME/.ssh" "700" "ssh-dir-perms"
 check_perms "Private key permissions" "$HOME/.ssh/id_ed25519" "600" "ssh-key-perms"
 check_perms ".ssh/config permissions" "$HOME/.ssh/config" "644" "ssh-config-perms"
-check_perms "dotfiles ssh dir" "$DOTFILES_DIR/ssh/.ssh" "700" "ssh-stow-dir-perms"
 
 # --- Git ---
 print_header "Git Configuration"
@@ -282,7 +281,7 @@ else
     missing_items+=("stow-git")
 fi
 
-# --- APT Packages (from dotfiles.conf) ---
+# --- APT Packages ---
 print_header "APT Packages"
 
 for pkg in "${APT_PACKAGES[@]}"; do
@@ -294,6 +293,65 @@ for pkg in "${APT_PACKAGES[@]}"; do
         missing_items+=("apt-$pkg")
     fi
 done
+
+# --- Dev Toolchains ---
+print_header "Dev Toolchains"
+
+if [[ "$INSTALL_RUST" == true ]]; then
+    if command -v rustup >/dev/null 2>&1; then
+        rust_ver=$(rustc --version 2>/dev/null | cut -d' ' -f2)
+        print_row "Rust (rustup)" "${GREEN}✓ Installed${NC}" "$rust_ver"
+    else
+        print_row "Rust (rustup)" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-rust")
+    fi
+fi
+
+if [[ "$INSTALL_NODE" == true ]]; then
+    if command -v fnm >/dev/null 2>&1; then
+        node_ver=$(node --version 2>/dev/null || echo "no node installed")
+        print_row "Node (fnm)" "${GREEN}✓ Installed${NC}" "$node_ver"
+    else
+        print_row "Node (fnm)" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-node")
+    fi
+fi
+
+if [[ "$INSTALL_ICP" == true ]]; then
+    if command -v dfx >/dev/null 2>&1; then
+        dfx_ver=$(dfx --version 2>/dev/null || echo "unknown")
+        print_row "dfx (dfxvm)" "${GREEN}✓ Installed${NC}" "$dfx_ver"
+    else
+        print_row "dfx (dfxvm)" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-icp")
+    fi
+    if command -v ic-admin >/dev/null 2>&1; then
+        print_row "ic-admin" "${GREEN}✓ Installed${NC}" ""
+    else
+        print_row "ic-admin" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-ic-admin")
+    fi
+fi
+
+if [[ "$INSTALL_PYTHON" == true ]]; then
+    if command -v python3 >/dev/null 2>&1 && dpkg -s python3-venv >/dev/null 2>&1; then
+        py_ver=$(python3 --version 2>/dev/null | cut -d' ' -f2)
+        print_row "Python + venv" "${GREEN}✓ Installed${NC}" "$py_ver"
+    else
+        print_row "Python + venv" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-python")
+    fi
+fi
+
+if [[ "$INSTALL_DOCKER" == true ]]; then
+    if dpkg -s docker-compose-v2 >/dev/null 2>&1; then
+        dc_ver=$(dpkg -s docker-compose-v2 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+        print_row "Docker Compose" "${GREEN}✓ Installed${NC}" "$dc_ver"
+    else
+        print_row "Docker Compose" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-docker")
+    fi
+fi
 
 # --- Claude Code ---
 print_header "Claude Code"
@@ -438,7 +496,37 @@ if [ ${#apt_pkgs[@]} -gt 0 ]; then
     echo "  sudo apt update && sudo apt install -y ${apt_pkgs[*]}"
 fi
 
-# 8. Claude Code
+# 9. Dev toolchains
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        install-rust)
+            printf "\n  ${CYAN}# Install Rust${NC}\n"
+            echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy rustfmt"
+            ;;
+        install-node)
+            printf "\n  ${CYAN}# Install fnm + Node LTS${NC}\n"
+            echo "  curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell && fnm install --lts"
+            ;;
+        install-icp)
+            printf "\n  ${CYAN}# Install dfxvm (DFINITY SDK)${NC}\n"
+            echo '  sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"'
+            ;;
+        install-ic-admin)
+            printf "\n  ${CYAN}# Install ic-admin${NC}\n"
+            echo '  curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ic-admin && chmod 0755 ./ic-admin'
+            ;;
+        install-python)
+            printf "\n  ${CYAN}# Install Python + venv${NC}\n"
+            echo "  sudo apt update && sudo apt install -y python3 python3-venv"
+            ;;
+        install-docker)
+            printf "\n  ${CYAN}# Install Docker Compose${NC}\n"
+            echo "  sudo apt update && sudo apt install -y docker-compose-v2"
+            ;;
+    esac
+done
+
+# 10. Claude Code
 for item in "${unique_items[@]}"; do
     case "$item" in
         claude-cli)

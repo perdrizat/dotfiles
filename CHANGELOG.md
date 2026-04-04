@@ -6,10 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-04-04]
+
+### Added
+
+- Dev toolchain toggles in `setup.sh`: `INSTALL_RUST`, `INSTALL_NODE`, `INSTALL_ICP`, `INSTALL_PYTHON`, `INSTALL_DOCKER`
+- Rust via `rustup`, Node via `fnm`, ICP via `dfxvm` + `ic-admin`, Python via apt, Docker via apt
+- `validate_setup.sh` checks and fix commands for all dev toolchains
+- Claude Code installed via `curl`
+
 ### Fixed
 
-- `validate_setup.sh` stow check: skip gitignored files (e.g. generated pub keys, known_hosts adopted by stow)
-- Claude Code install command: use `curl` installer instead of `npm`
+- `validate_setup.sh` stow check: skip gitignored files (generated pub keys, known_hosts)
+- `setup.sh` prevents stow from folding `~/.ssh` into a symlink
 
 ## [2026-04-04]
 

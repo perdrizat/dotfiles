@@ -8,9 +8,16 @@ DOTFILES_DIR="$HOME/dotfiles"
 
 # --- Shared variables (also used by validate_setup.sh) ---
 PREREQS=(git curl stow age)
-APT_PACKAGES=(build-essential python3-venv docker-compose-v2)
-STOW_SKIP=(.git agent gemini)
+APT_PACKAGES=(build-essential)
+STOW_SKIP=(.git agent)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
+
+# --- Dev toolchain toggles (set false to skip) ---
+INSTALL_RUST=false	# rustup → cargo, rustc, rustfmt, clippy
+INSTALL_NODE=true	# fnm → latest LTS Node + npm
+INSTALL_ICP=false	# dfxvm → dfx + ic-admin
+INSTALL_PYTHON=false	# apt python3 + python3-venv
+INSTALL_DOCKER=true	# apt docker-compose-v2
 
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
@@ -57,6 +64,8 @@ fi
 # Auto-discover and link stow packages
 echo "Linking dotfiles with Stow..."
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
+mkdir -p ~/.ssh && chmod 700 ~/.ssh # prevent stow from folding .ssh into a symlink (generated files must not land in repo)
+mkdir -p ~/.gemini
 for pkg_dir in "$DOTFILES_DIR"/*/; do
     pkg=$(basename "$pkg_dir")
     skip=false
@@ -70,10 +79,6 @@ done
 # Ensure ~/bin scripts are executable
 chmod +x "$HOME"/bin/*.sh 2>/dev/null || true
 
-# Gemini/Antigravity symlinks (not stow-managed — ~/.gemini must be a real directory)
-mkdir -p ~/.gemini
-ln -sf "$DOTFILES_DIR/gemini/.gemini/skills" ~/.gemini/skills
-
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
 GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
 mkdir -p ~/.claude ~/.codex ~/.gemini
@@ -86,8 +91,8 @@ ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/GEMINI.md
 # Decrypt SSH key if it doesn't already exist
 if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
     echo "Decrypting SSH key..."
+    touch ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
     age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age
-    chmod 600 ~/.ssh/id_ed25519
 fi
 # Regenerate public key from private key (pub key is not tracked in git)
 if [ -f ~/.ssh/id_ed25519 ]; then
@@ -95,8 +100,6 @@ if [ -f ~/.ssh/id_ed25519 ]; then
     ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
 fi
 echo "Fixing remaining SSH permissions..."
-chmod 700 ~/dotfiles/ssh/.ssh
-[ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
 
 # Switch dotfiles remote from HTTPS to SSH now that keys are in place
 current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
@@ -105,9 +108,48 @@ if [ "$current_remote" != "$DOTFILES_SSH_REMOTE" ]; then
     git -C "$DOTFILES_DIR" remote set-url origin "$DOTFILES_SSH_REMOTE"
 fi
 
-# Update & install remaining utilities if not already present
+# --- System packages ---
 sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
-dpkg -s "${APT_PACKAGES[@]}" >/dev/null 2>&1 || sudo apt install -y "${APT_PACKAGES[@]}"
+
+# Collect apt packages based on toggles
+apt_install=("${APT_PACKAGES[@]}")
+[[ "$INSTALL_PYTHON" == true ]] && apt_install+=(python3 python3-venv)
+[[ "$INSTALL_DOCKER" == true ]] && apt_install+=(docker-compose-v2)
+
+dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || sudo apt install -y "${apt_install[@]}"
+
+# --- Dev toolchains (curl-based, idempotent) ---
+
+if [[ "$INSTALL_RUST" == true ]] && ! command -v rustup >/dev/null 2>&1; then
+    echo "Installing Rust via rustup..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy rustfmt
+    source "$HOME/.cargo/env"
+fi
+
+if [[ "$INSTALL_NODE" == true ]] && ! command -v fnm >/dev/null 2>&1; then
+    echo "Installing fnm (Fast Node Manager)..."
+    curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell
+    export PATH="$HOME/.local/share/fnm:$PATH"
+    eval "$(fnm env)"
+    fnm install --lts
+fi
+
+if [[ "$INSTALL_ICP" == true ]]; then
+    if ! command -v dfxvm >/dev/null 2>&1; then
+        echo "Installing dfxvm (DFINITY SDK version manager)..."
+        sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+    fi
+    if ! command -v ic-admin >/dev/null 2>&1; then
+        echo "Installing ic-admin..."
+	curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ic-admin && chmod 0755 ./ic-admin
+    fi
+fi
+
+# --- Claude Code ---
+if ! command -v claude >/dev/null 2>&1; then
+    echo "Installing Claude Code..."
+    curl -fsSL https://claude.ai/install.sh | sh
+fi
 
 echo "Setup complete! Restart your shell or run"
 echo '. ~/.bashrc'
