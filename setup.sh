@@ -25,6 +25,12 @@ if [ ! -d "$DOTFILES_DIR" ]; then
 fi
 cd "$DOTFILES_DIR"
 
+#############################################################################################
+#                                                                                           #
+# you can stop copy-pasting and just run the dotfiles/setup.sh script to continue from here #
+#                                                                                           #
+#############################################################################################
+
 # Create the sourcing snippet
 # We use a heredoc to define what needs to be added to .bashrc
 BASHDOT=$(cat <<EOF
