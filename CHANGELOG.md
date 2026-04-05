@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2026-04-05]
 
+### Changed
+
+- `settings.json`: enable `terminalTitleFromRename` for custom terminal titles with Claude Code status indicators
+- `settings.json`: Stop hook uses `$WSL_DISTRO_NAME` (hostname fallback) and writes to stderr instead of `/dev/tty`
+
+### Removed
+
+- `settings.json`: SessionStart title hook (overridden by Claude Code's built-in title)
+
 ### Added
 
 - `setup.sh` adds user to docker group (`usermod -aG docker`) when `INSTALL_DOCKER=true`
