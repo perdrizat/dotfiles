@@ -122,6 +122,11 @@ apt_install=("${APT_PACKAGES[@]}")
 
 dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || sudo apt install -y "${apt_install[@]}"
 
+# Add current user to docker group (requires logout/login to take effect)
+if [[ "$INSTALL_DOCKER" == true ]] && ! id -nG "$USER" | grep -qw docker; then
+    sudo usermod -aG docker "$USER"
+fi
+
 # --- Dev toolchains (curl-based, idempotent) ---
 
 if [[ "$INSTALL_RUST" == true ]] && ! command -v rustup >/dev/null 2>&1; then

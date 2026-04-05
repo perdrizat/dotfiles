@@ -338,6 +338,12 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
         print_row "Docker Compose" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-docker")
     fi
+    if id -nG "$USER" | grep -qw docker; then
+        print_row "docker group" "${GREEN}✓ Member${NC}" "$USER"
+    else
+        print_row "docker group" "${RED}✗ Not a member${NC}" "$USER"
+        missing_items+=("docker-group")
+    fi
 fi
 
 # --- LLM Agents ---
@@ -521,6 +527,10 @@ for item in "${unique_items[@]}"; do
         install-docker)
             printf "\n  ${CYAN}# Install Docker Compose${NC}\n"
             echo "  sudo apt update && sudo apt install -y docker-compose-v2"
+            ;;
+        docker-group)
+            printf "\n  ${CYAN}# Add user to docker group (logout/login to take effect)${NC}\n"
+            echo "  sudo usermod -aG docker \$USER"
             ;;
     esac
 done

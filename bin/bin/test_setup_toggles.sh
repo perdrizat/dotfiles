@@ -69,6 +69,16 @@ echo "Test 6: validate output excludes Gemini CLI when toggle is false"
 output=$(INSTALL_GEMINI_CLI=false bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
 assert_not_contains "Gemini CLI header absent" "$output" "Gemini CLI"
 
+# --- Test 7: validate_setup.sh checks docker group when INSTALL_DOCKER=true ---
+echo "Test 7: validate output includes docker group check when toggle is true"
+output=$(INSTALL_DOCKER=true bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
+assert_contains "docker group check present" "$output" "docker group"
+
+# --- Test 8: validate_setup.sh skips docker group when INSTALL_DOCKER=false ---
+echo "Test 8: validate output excludes docker group when toggle is false"
+output=$(INSTALL_DOCKER=false bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
+assert_not_contains "docker group absent" "$output" "docker group"
+
 # --- Summary ---
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
