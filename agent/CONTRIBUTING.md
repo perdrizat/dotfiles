@@ -24,7 +24,7 @@ The goal is a changelog that helps the *next session* pick up where this one lef
 
 When asked to prepare a commit, run pre-commit checks, or help get code ready to commit, follow the steps below. **Never run `git add` or `git commit` — the user commits manually.**
 
-1. **Run `pre_commit_check.sh`** — This single script performs the safety scan (secrets, debug remnants), documentation freshness check (CHANGELOG.md, CONTRIBUTING.md, README.md), and lists all changed files. Review its output and act on any warnings before proceeding.
+1. **Run `pre_commit_check.sh`** — This utility performs the safety scan (secrets, debug remnants), documentation freshness check (CHANGELOG.md, CONTRIBUTING.md, README.md), and lists all changed files. Review its output and act on any warnings before proceeding.
 2. **Build, lint, test** — If the project has a build step, linter, or test suite, run them. Adapt to whatever tooling the project uses (`npm`, `cargo`, `pytest`, `go`, etc.). Report failures; do not proceed until they pass.
 3. **Promote changelog entries** — Move completed entries from `[Unreleased]` to a new `[YYYY-MM-DD]` section (today's date). Leave any in-progress or unfinished items under `[Unreleased]`.
 4. **Commit message** — Based on the diff, suggest a short (under 72 chars) conventional commit message. If changes span multiple concerns, suggest splitting and provide a message for each.
