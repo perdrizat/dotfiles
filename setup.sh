@@ -113,6 +113,16 @@ if [ "$current_remote" != "$DOTFILES_SSH_REMOTE" ]; then
     git -C "$DOTFILES_DIR" remote set-url origin "$DOTFILES_SSH_REMOTE"
 fi
 
+# --- WSL config (host-specific) ---
+if [ "$(hostname)" = "bequiet" ]; then
+    WSL_BOOT='[boot]
+command = "bash -c '"'"'ip -6 addr change 2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81/64 dev eth0 preferred_lft forever valid_lft forever; ip -6 addr del 2a02:16a:b205:1:3e6a:d2ff:fe7a:6a81/64 dev eth0 2>/dev/null; true'"'"'"'
+    if ! grep -q '2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81' /etc/wsl.conf 2>/dev/null; then
+        echo "Adding IPv6 boot command to /etc/wsl.conf..."
+        printf '\n%s\n' "$WSL_BOOT" | sudo tee -a /etc/wsl.conf >/dev/null
+    fi
+fi
+
 # --- System packages ---
 sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
 

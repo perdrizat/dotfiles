@@ -243,6 +243,17 @@ check_perms ".ssh/ permissions" "$HOME/.ssh" "700" "ssh-dir-perms"
 check_perms "Private key permissions" "$HOME/.ssh/id_ed25519" "600" "ssh-key-perms"
 check_perms ".ssh/config permissions" "$HOME/.ssh/config" "644" "ssh-config-perms"
 
+# --- WSL config (host-specific) ---
+if [ "$(hostname)" = "bequiet" ]; then
+    print_header "WSL Configuration"
+    if grep -q '2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81' /etc/wsl.conf 2>/dev/null; then
+        print_row "IPv6 boot command" "${GREEN}✓ Present${NC}" "/etc/wsl.conf"
+    else
+        print_row "IPv6 boot command" "${RED}✗ Missing${NC}" "/etc/wsl.conf"
+        missing_items+=("wsl-ipv6")
+    fi
+fi
+
 # --- Git ---
 print_header "Git Configuration"
 
@@ -462,6 +473,16 @@ if $ssh_fixes; then
         esac
     done
 fi
+
+# 5b. WSL config
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        wsl-ipv6)
+            printf "\n  ${CYAN}# Add IPv6 boot command to /etc/wsl.conf${NC}\n"
+            echo "  cd ~/dotfiles && bash setup.sh"
+            break ;;
+    esac
+done
 
 # 6. Global LLM instructions
 for item in "${unique_items[@]}"; do
