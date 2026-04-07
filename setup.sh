@@ -13,6 +13,7 @@ STOW_SKIP=(.git agent)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
 # --- Dev toolchain toggles (set false to skip, overridable via env) ---
+# echo INSTALL_RUST=true; echo INSTALL_NODE=false; echo INSTALL_ICP=true; echo INSTALL_PYTHON=false; echo INSTALL_DOCKER=false # ICP
 INSTALL_RUST=${INSTALL_RUST:-false}	# rustup → cargo, rustc, rustfmt, clippy
 INSTALL_NODE=${INSTALL_NODE:-true}	# fnm → latest LTS Node + npm
 INSTALL_ICP=${INSTALL_ICP:-false}	# dfxvm → dfx + ic-admin
