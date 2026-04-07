@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2026-04-07]
+
+### Added
+
+- `setup.sh`: add IPv6 static address boot command to `/etc/wsl.conf` on hostname `bequiet`
+- `validate_setup.sh`: check for IPv6 boot command in `/etc/wsl.conf` on `bequiet`
+
 ## [2026-04-05]
 
 ### Changed
