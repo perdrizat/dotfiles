@@ -6,7 +6,7 @@
       "Bash(validate_project.sh*)"
     ]
   },
-  "model": "opus[1m]",
+  "model": "opus",
   "hooks": {
     "Stop": [
       {
