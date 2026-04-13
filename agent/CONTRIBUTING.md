@@ -8,7 +8,7 @@ These instructions apply to all LLM coding agents (Claude Code, OpenAI Codex, Go
 
 ## Workflow
 
-- **Always update CHANGELOG.md**: Before returning to the user after completing work, update (or create) `CHANGELOG.md` in the project root following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Add entries under the `[Unreleased]` section using the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security. Be concise — one line per change.
+- **Always update CHANGELOG.md**: Before returning to the user after completing work, update (or create) `CHANGELOG.md` in the project root following [Keep a Changelog](https://keepachangelog.com/) format. Add entries under the `[Unreleased]` section using the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security. Be concise — one line per change.
 
 ## Compressing CHANGELOG.md
 
