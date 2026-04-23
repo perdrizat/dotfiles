@@ -16,8 +16,9 @@ else
 fi
 export VISUAL="$EDITOR"
 
-# for Claude Code
-COLORTERM=truecolor
+# for Claude Code & Gemini
+export COLORTERM=truecolor
+export FORCE_COLOR=3
 
 # Only cd to home if we are currently in a Windows drive mapping
 if [[ "$PWD" == "/mnt/c/Users/mperd" ]]; then
