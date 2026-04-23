@@ -100,6 +100,11 @@ size_to_mb() {
     fi
 }
 
+# Get the device that has the root filesystem mounted
+get_root_device() {
+    df / | tail -1 | awk '{print $1}'
+}
+
 # Get current filesystem size in GiB (what's actually mounted, not VHDX file size)
 # Returns the size in GiB, rounded to match 'df -h' output
 get_filesystem_size() {
@@ -194,7 +199,8 @@ main() {
 
     check_wsl
 
-    local root_device="/dev/sdd"  # typical for WSL2
+    local root_device
+    root_device=$(get_root_device)
     local vhdx_path
     local current_mb
     local new_mb
