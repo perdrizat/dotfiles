@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+
+## [2026-04-23]
+
+### Added
+
+- `bin/bin/expand_wsl_disk.sh` — Expand WSL2 disk space from within Ubuntu; finds VHDX via registry, uses diskpart (with Windows admin elevation), resizes filesystem with resize2fs
+- `bin/bin/test_expand_wsl_disk.sh` — Tests for expand_wsl_disk.sh
+
 ## [2026-04-07]
 
 ### Added
