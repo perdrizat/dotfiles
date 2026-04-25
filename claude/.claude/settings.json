@@ -6,7 +6,6 @@
       "Bash(validate_project.sh*)"
     ]
   },
-  "model": "opus",
   "hooks": {
     "Stop": [
       {
@@ -28,5 +27,6 @@
     "command": "bash ~/bin/claude_status.sh"
   },
   "terminalTitleFromRename": true,
-  "autoMemoryEnabled": true
+  "autoMemoryEnabled": true,
+  "model": "opus"
 }
