@@ -7,25 +7,10 @@
 DOTFILES_DIR="$HOME/dotfiles"
 
 # --- Shared variables (also used by validate_setup.sh) ---
-PREREQS=(git curl stow age unzip jq)
-APT_PACKAGES=(build-essential)
+PREREQS=(git curl stow age unzip)
+APT_PACKAGES=(build-essential bat jq)
 STOW_SKIP=(.git agent)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
-
-# --- Dev toolchain toggles (set false to skip, overridable via env) ---
-# echo INSTALL_RUST=true; echo INSTALL_NODE=false; echo INSTALL_ICP=true; echo INSTALL_PYTHON=false; echo INSTALL_DOCKER=false # ICP
-INSTALL_RUST=${INSTALL_RUST:-false}	# rustup → cargo, rustc, rustfmt, clippy
-INSTALL_NODE=${INSTALL_NODE:-true}	# fnm → latest LTS Node + npm
-INSTALL_ICP=${INSTALL_ICP:-false}	# dfxvm → dfx + ic-admin
-INSTALL_PYTHON=${INSTALL_PYTHON:-false}	# apt python3 + python3-venv
-INSTALL_DOCKER=${INSTALL_DOCKER:-true}	# apt docker-compose-v2
-
-# --- LLM agent toggles (set false to skip, overridable via env) ---
-INSTALL_CLAUDE=${INSTALL_CLAUDE:-true}	# Claude Code CLI
-INSTALL_GEMINI_CLI=${INSTALL_GEMINI_CLI:-false}	# Gemini CLI (npm: @google/gemini-cli)
-
-# When sourced by validate_setup.sh, stop here
-[[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
 # Install the setup prerequisites if missing
 command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt update && sudo apt install -y "${PREREQS[@]}"; }
@@ -42,6 +27,35 @@ cd "$DOTFILES_DIR"
 # you can stop copy-pasting and just run the dotfiles/setup.sh script to continue from here #
 #                                                                                           #
 #############################################################################################
+
+# --- Load machine-specific config (or create default) ---
+CONFIG_FILE="$DOTFILES_DIR/.setup.conf"
+if [ ! -f "$CONFIG_FILE" ]; then
+    cat > "$CONFIG_FILE" << 'CONFIGEOF'
+# Machine-specific setup configuration
+# Edit this file to customize your installation
+# All toggles default to false; set to true to enable
+
+# Dev toolchain toggles
+INSTALL_RUST=false       # rustup → cargo, rustc, rustfmt, clippy
+INSTALL_NODE=false       # fnm → latest LTS Node + npm
+INSTALL_ICP=false        # dfxvm → dfx + ic-admin
+INSTALL_PYTHON=false     # apt python3 + python3-venv
+INSTALL_DOCKER=false     # apt docker-compose-v2
+
+# LLM agent toggles
+INSTALL_CLAUDE=false     # Claude Code CLI
+INSTALL_GEMINI_CLI=false # Gemini CLI (npm: @google/gemini-cli)
+
+# Additional apt packages (space-separated)
+MORE_APT_PACKAGES=""
+CONFIGEOF
+    echo "Created $CONFIG_FILE — customize it then re-run setup.sh"
+fi
+source "$CONFIG_FILE"
+
+# When sourced by validate_setup.sh, stop here
+[[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
 # Create the sourcing snippet
 # We use a heredoc to define what needs to be added to .bashrc
@@ -126,10 +140,15 @@ fi
 # --- System packages ---
 sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
 
-# Collect apt packages based on toggles
+# Collect apt packages based on toggles and config
 apt_install=("${APT_PACKAGES[@]}")
 [[ "$INSTALL_PYTHON" == true ]] && apt_install+=(python3 python3-venv)
 [[ "$INSTALL_DOCKER" == true ]] && apt_install+=(docker-compose-v2)
+# Add machine-specific packages from config
+if [ -n "$MORE_APT_PACKAGES" ]; then
+    read -ra more_pkgs <<< "$MORE_APT_PACKAGES"
+    apt_install+=("${more_pkgs[@]}")
+fi
 
 dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || sudo apt install -y "${apt_install[@]}"
 

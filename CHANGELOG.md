@@ -6,9 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-04-26]
+
 ### Changed
 
 - `bin/bin/claude_status.sh`: round 5h/7d reset times to nearest 10 minutes instead of 1-minute precision
+- `setup.sh`: refactored to load machine-specific toggles from `.setup.conf` (created on first run with all toggles defaulting to false)
+- `setup.sh`: added `MORE_APT_PACKAGES` variable in config for locally-specific apt packages
+
+### Removed
+
+- Hard-coded dev toolchain and LLM agent toggle defaults from setup.sh (now all false in generated config)
 
 
 ## [2026-04-23]
