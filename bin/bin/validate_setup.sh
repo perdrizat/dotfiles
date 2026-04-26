@@ -77,6 +77,40 @@ is_stow_skip() {
 }
 
 # ==========================================
+#  UPDATE MODE
+# ==========================================
+
+if [[ "${1:-}" == "-update" ]]; then
+    echo ""
+    printf "${BOLD}Updating toolchains and packages${NC}\n"
+
+    if [[ "$INSTALL_RUST" == true ]] && command -v rustup >/dev/null 2>&1; then
+        printf "\n${CYAN}Updating Rust${NC}\n"
+        rustup update
+    fi
+
+    if [[ "$INSTALL_NODE" == true ]] && command -v fnm >/dev/null 2>&1; then
+        printf "\n${CYAN}Updating Node LTS${NC}\n"
+        export PATH="$HOME/.local/share/fnm:$PATH"
+        eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
+        fnm install --lts
+    fi
+
+    if [[ "$INSTALL_ICP" == true ]] && command -v dfxvm >/dev/null 2>&1; then
+        printf "\n${CYAN}Updating dfxvm${NC}\n"
+        dfxvm self-upgrade || true
+    fi
+
+    # Python packages are managed by apt (PEP 668 prevents pip from updating system packages)
+    printf "\n${CYAN}Updating apt packages${NC}\n"
+    sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
+
+    echo ""
+    printf "${GREEN}${BOLD}Updates complete!${NC}\n\n"
+    exit 0
+fi
+
+# ==========================================
 #  CHECKS
 # ==========================================
 
@@ -332,11 +366,11 @@ if [[ "$INSTALL_ICP" == true ]]; then
 fi
 
 if [[ "$INSTALL_PYTHON" == true ]]; then
-    if command -v python3 >/dev/null 2>&1 && dpkg -s python3-venv >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1 && dpkg -s python3-pip >/dev/null 2>&1 && dpkg -s python3-venv >/dev/null 2>&1; then
         py_ver=$(python3 --version 2>/dev/null | cut -d' ' -f2)
-        print_row "Python + venv" "${GREEN}✓ Installed${NC}" "$py_ver"
+        print_row "Python + pip + venv" "${GREEN}✓ Installed${NC}" "$py_ver"
     else
-        print_row "Python + venv" "${RED}✗ Missing${NC}" ""
+        print_row "Python + pip + venv" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-python")
     fi
 fi
@@ -542,8 +576,8 @@ for item in "${unique_items[@]}"; do
             echo '  curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ic-admin && chmod 0755 ./ic-admin'
             ;;
         install-python)
-            printf "\n  ${CYAN}# Install Python + venv${NC}\n"
-            echo "  sudo apt update && sudo apt install -y python3 python3-venv"
+            printf "\n  ${CYAN}# Install Python + pip + venv${NC}\n"
+            echo "  sudo apt update && sudo apt install -y python3 python3-pip python3-venv"
             ;;
         install-docker)
             printf "\n  ${CYAN}# Install Docker Compose${NC}\n"

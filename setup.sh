@@ -142,7 +142,7 @@ sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
 
 # Collect apt packages based on toggles and config
 apt_install=("${APT_PACKAGES[@]}")
-[[ "$INSTALL_PYTHON" == true ]] && apt_install+=(python3 python3-venv)
+[[ "$INSTALL_PYTHON" == true ]] && apt_install+=(python3 python3-pip python3-venv)
 [[ "$INSTALL_DOCKER" == true ]] && apt_install+=(docker-compose-v2)
 # Add machine-specific packages from config
 if [ -n "$MORE_APT_PACKAGES" ]; then

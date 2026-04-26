@@ -6,13 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+
 ## [2026-04-26]
+
+### Added
+
+- `bin/bin/validate_setup.sh -update`: Updates apt packages and active toolchains (rust, node, icp) based on config toggles
 
 ### Changed
 
 - `bin/bin/claude_status.sh`: round 5h/7d reset times to nearest 10 minutes instead of 1-minute precision
 - `setup.sh`: refactored to load machine-specific toggles from `.setup.conf` (created on first run with all toggles defaulting to false)
 - `setup.sh`: added `MORE_APT_PACKAGES` variable in config for locally-specific apt packages
+- `setup.sh`: include `python3-pip` when installing Python (was missing, required for pip updates)
+- `bin/bin/validate_setup.sh`: Python check now validates python3-pip is installed along with python3 and python3-venv
 
 ### Removed
 
