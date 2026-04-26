@@ -12,10 +12,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "printf '\\e]0;%s@%s: %s\\a' \"$USER\" \"${WSL_DISTRO_NAME:-$(hostname -s)}\" \"$PWD\" >&2"
-          },
-          {
-            "type": "command",
             "command": "bash ~/bin/check_changelog.sh"
           }
         ]
@@ -28,5 +24,6 @@
   },
   "terminalTitleFromRename": true,
   "autoMemoryEnabled": true,
+  "remoteControlAtStartup": true,
   "model": "opus"
 }

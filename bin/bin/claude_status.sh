@@ -76,8 +76,16 @@ week_util=$(echo "$data" | jq -r '.seven_day.utilization // 0')
 curr_pct=$(echo "$curr_util" | xargs printf "%.0f")
 week_pct=$(echo "$week_util" | xargs printf "%.0f")
 
-reset_curr=$(date -d "$(echo "$data" | jq -r '.five_hour.resets_at // now')" +"%H:%M")
-reset_week=$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +"%m/%d %H:%M")
+# Round to nearest 10 minutes: (timestamp + 300) / 600 * 600
+round_to_10min() {
+    local ts=$1
+    local fmt=$2
+    local rounded=$(( (ts + 300) / 600 * 600 ))
+    date -d @"$rounded" +"$fmt"
+}
+
+reset_curr=$(round_to_10min "$(date -d "$(echo "$data" | jq -r '.five_hour.resets_at // now')" +%s)" "%H:%M")
+reset_week=$(round_to_10min "$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +%s)" "%m/%d %H:%M")
 
 extra_enabled=$(echo "$data" | jq -r '.extra_usage.is_enabled // false')
 if [ "$extra_enabled" = "true" ]; then
