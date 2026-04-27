@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+
 ### Changed
+
 
 
 ## [2026-04-26]
@@ -14,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `bin/bin/validate_setup.sh -update`: Updates apt packages and active toolchains (rust, node, icp) based on config toggles
+- `bin/bin/validate_setup.sh`: checks that `~/.claude/settings.json` exists and has all required keys (permissions, hooks, statusLine, terminalTitleFromRename, autoMemoryEnabled, remoteControlAtStartup)
+- `bin/bin/validate_setup.sh`: detects if settings.json is a symlink (legacy stow deployment) and suggests converting to a copy
 
 ### Changed
 
@@ -22,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `setup.sh`: added `MORE_APT_PACKAGES` variable in config for locally-specific apt packages
 - `setup.sh`: include `python3-pip` when installing Python (was missing, required for pip updates)
 - `bin/bin/validate_setup.sh`: Python check now validates python3-pip is installed along with python3 and python3-venv
+- `setup.sh`: `claude/.claude/settings.json` no longer deployed via stow; now copied from template to `~/.claude/settings.json` on first run (allows per-machine customization)
 
 ### Removed
 

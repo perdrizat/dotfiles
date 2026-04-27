@@ -98,6 +98,12 @@ done
 # Ensure ~/bin scripts are executable
 chmod +x "$HOME"/bin/*.sh 2>/dev/null || true
 
+# Deploy settings.json from template (not via stow to allow local customization)
+if [ ! -f ~/.claude/settings.json ]; then
+    cp "$DOTFILES_DIR/claude/.claude/settings.json" ~/.claude/settings.json
+    echo "Deployed settings.json template to ~/.claude/settings.json"
+fi
+
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
 GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
 mkdir -p ~/.claude ~/.codex ~/.gemini

@@ -199,6 +199,8 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
         relative="${file#"$pkg_dir"}"
         # Skip repo-only files and gitignored files (e.g. generated keys, known_hosts)
         [[ "$(basename "$relative")" == .gitignore ]] && continue
+        # Skip settings.json (deployed from template, not via stow)
+        [[ "$(basename "$relative")" == settings.json ]] && continue
         git -C "$DOTFILES_DIR" check-ignore -q "$file" 2>/dev/null && continue
         # Skip files under directories already folded by stow
         skip=false
@@ -233,6 +235,37 @@ check_symlink ".claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" "$GLOBAL_INSTRUCTION
 check_symlink ".codex/AGENTS.md" "$HOME/.codex/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".gemini/AGENTS.md" "$HOME/.gemini/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
+
+# --- Claude Code Settings ---
+print_header "Claude Code Configuration"
+
+if [ -L "$HOME/.claude/settings.json" ]; then
+    # Symlink detected — settings should be a copy, not a symlink
+    target=$(readlink "$HOME/.claude/settings.json")
+    print_row ".claude/settings.json" "${YELLOW}⚠ Is a symlink${NC}" "→ $target (should be a copy)"
+    missing_items+=("claude-settings-symlink")
+elif [ -f "$HOME/.claude/settings.json" ]; then
+    # Check for required top-level keys (except model, which is user-configurable)
+    local_settings="$HOME/.claude/settings.json"
+    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup")
+    missing_keys=()
+
+    for key in "${required_keys[@]}"; do
+        if ! jq -e ".$key" "$local_settings" >/dev/null 2>&1; then
+            missing_keys+=("$key")
+        fi
+    done
+
+    if [ ${#missing_keys[@]} -eq 0 ]; then
+        print_row ".claude/settings.json" "${GREEN}✓ Complete${NC}" "all required keys present"
+    else
+        print_row ".claude/settings.json" "${YELLOW}⚠ Missing keys${NC}" "${missing_keys[*]}"
+        missing_items+=("claude-settings")
+    fi
+else
+    print_row ".claude/settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create from template"
+    missing_items+=("claude-settings")
+fi
 
 # --- SSH ---
 print_header "SSH"
@@ -590,7 +623,21 @@ for item in "${unique_items[@]}"; do
     esac
 done
 
-# 10. LLM agents
+# 10. Claude Code settings
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        claude-settings)
+            printf "\n  ${CYAN}# Deploy Claude Code settings${NC}\n"
+            echo "  cp ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json"
+            break ;;
+        claude-settings-symlink)
+            printf "\n  ${CYAN}# Convert settings.json from symlink to copy${NC}\n"
+            echo "  rm ~/.claude/settings.json && cp ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json"
+            break ;;
+    esac
+done
+
+# 11. LLM agents
 for item in "${unique_items[@]}"; do
     case "$item" in
         claude-cli)
