@@ -6,7 +6,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Changed
 
 
 ## [2026-04-27]
@@ -14,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `bin/bin/check_repos.sh` — Scans all git repos under ~ for uncommitted code; outputs one line per repo with changes
+
+### Fixed
+
+- `setup.sh`: ic-admin installation now correctly places binary in ~/.local/bin instead of current working directory
 
 ## [2026-04-26]
 

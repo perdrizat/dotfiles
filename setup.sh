@@ -192,7 +192,8 @@ if [[ "$INSTALL_ICP" == true ]]; then
     fi
     if ! command -v ic-admin >/dev/null 2>&1; then
         echo "Installing ic-admin..."
-	curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ic-admin && chmod 0755 ./ic-admin
+        mkdir -p ~/.local/bin
+        curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ~/.local/bin/ic-admin && chmod 0755 ~/.local/bin/ic-admin
     fi
 fi
 

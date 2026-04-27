@@ -606,7 +606,7 @@ for item in "${unique_items[@]}"; do
             ;;
         install-ic-admin)
             printf "\n  ${CYAN}# Install ic-admin${NC}\n"
-            echo '  curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ic-admin && chmod 0755 ./ic-admin'
+            echo '  mkdir -p ~/.local/bin && curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ~/.local/bin/ic-admin && chmod 0755 ~/.local/bin/ic-admin'
             ;;
         install-python)
             printf "\n  ${CYAN}# Install Python + pip + venv${NC}\n"
