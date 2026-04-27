@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
 
 
 ## [2026-04-27]
@@ -17,6 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - `setup.sh`: ic-admin installation now correctly places binary in ~/.local/bin instead of current working directory
+- `setup.sh`: claude package now skipped from stow, preventing settings.json from being symlinked (allows template copy deployment)
+- `setup.sh`: ic-admin installation now correctly places binary in ~/.local/bin instead of current working directory
+- `bin/bin/validate_setup.sh`: now checks locally-specific packages from MORE_APT_PACKAGES in .setup.conf
+- `setup.sh` and `bin/bin/validate_setup.sh`: removed redundant `sudo apt update` from all package install commands; now only run in `-update` mode
+- `setup.sh`: added reminder at end to run `validate_setup.sh -u|--update` for package/toolchain updates
 
 ## [2026-04-26]
 

@@ -80,7 +80,7 @@ is_stow_skip() {
 #  UPDATE MODE
 # ==========================================
 
-if [[ "${1:-}" == "-update" ]]; then
+if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
     echo ""
     printf "${BOLD}Updating toolchains and packages${NC}\n"
 
@@ -345,6 +345,20 @@ for pkg in "${APT_PACKAGES[@]}"; do
     fi
 done
 
+# Check locally-specific packages from .setup.conf
+if [ -n "$MORE_APT_PACKAGES" ]; then
+    read -ra more_pkgs <<< "$MORE_APT_PACKAGES"
+    for pkg in "${more_pkgs[@]}"; do
+        if dpkg -s "$pkg" >/dev/null 2>&1; then
+            ver=$(dpkg -s "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+            print_row "$pkg (local)" "${GREEN}✓ Installed${NC}" "$ver"
+        else
+            print_row "$pkg (local)" "${RED}✗ Missing${NC}" ""
+            missing_items+=("apt-$pkg")
+        fi
+    done
+fi
+
 # --- Dev Toolchains ---
 print_header "Dev Toolchains"
 
@@ -479,7 +493,7 @@ for item in "${unique_items[@]}"; do
 done
 if [ ${#prereqs[@]} -gt 0 ]; then
     printf "\n  ${CYAN}# Install prerequisites${NC}\n"
-    echo "  sudo apt update && sudo apt install -y ${prereqs[*]}"
+    echo "  sudo apt install -y ${prereqs[*]}"
 fi
 
 # 2. Dotfiles repo
@@ -578,7 +592,7 @@ for item in "${unique_items[@]}"; do
 done
 if [ ${#apt_pkgs[@]} -gt 0 ]; then
     printf "\n  ${CYAN}# Install packages${NC}\n"
-    echo "  sudo apt update && sudo apt install -y ${apt_pkgs[*]}"
+    echo "  sudo apt install -y ${apt_pkgs[*]}"
 fi
 
 # 9. Dev toolchains
@@ -610,11 +624,11 @@ for item in "${unique_items[@]}"; do
             ;;
         install-python)
             printf "\n  ${CYAN}# Install Python + pip + venv${NC}\n"
-            echo "  sudo apt update && sudo apt install -y python3 python3-pip python3-venv"
+            echo "  sudo apt install -y python3 python3-pip python3-venv"
             ;;
         install-docker)
             printf "\n  ${CYAN}# Install Docker Compose${NC}\n"
-            echo "  sudo apt update && sudo apt install -y docker-compose-v2"
+            echo "  sudo apt install -y docker-compose-v2"
             ;;
         docker-group)
             printf "\n  ${CYAN}# Add user to docker group (logout/login to take effect)${NC}\n"

@@ -9,11 +9,11 @@ DOTFILES_DIR="$HOME/dotfiles"
 # --- Shared variables (also used by validate_setup.sh) ---
 PREREQS=(git curl stow age unzip)
 APT_PACKAGES=(build-essential bat jq)
-STOW_SKIP=(.git agent)
+STOW_SKIP=(.git agent claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
-# Install the setup prerequisites if missing
-command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt update && sudo apt install -y "${PREREQS[@]}"; }
+# Install the setup prerequisites if missing (apt update only in -update mode)
+command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt install -y "${PREREQS[@]}"; }
 
 # Clone the repo if we aren't already in it
 if [ ! -d "$DOTFILES_DIR" ]; then
@@ -144,7 +144,7 @@ command = "bash -c '"'"'ip -6 addr change 2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81/64
 fi
 
 # --- System packages ---
-sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
+# (apt update only in -update mode to avoid slowdown; apt is fast enough without it for initial setup)
 
 # Collect apt packages based on toggles and config
 apt_install=("${APT_PACKAGES[@]}")
@@ -210,3 +210,6 @@ fi
 
 echo "Setup complete! Restart your shell or run"
 echo '. ~/.bashrc'
+echo ""
+echo "To update packages and toolchains, run:"
+echo "  validate_setup.sh -u"
