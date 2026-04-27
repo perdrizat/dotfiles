@@ -6,12 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Added
-
-
 ### Changed
 
 
+## [2026-04-27]
+
+### Added
+
+- `bin/bin/check_repos.sh` — Scans all git repos under ~ for uncommitted code; outputs one line per repo with changes
 
 ## [2026-04-26]
 
