@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+## [2026-04-28]
+
+### Changed
+
+- `bin/bin/check_repos.sh`: outputs repos in alphabetical order (collected and sorted before processing); now outputs one line for every repo (clean or with changes), instead of only repos with changes
+- `bin/bin/check_repos.sh`: repos with changes are displayed in bold
+- `bin/bin/check_repos.sh`: displays repo names only (basename), not full paths
 
 ## [2026-04-27]
 
