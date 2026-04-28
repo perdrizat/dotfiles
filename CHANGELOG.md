@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+### Changed
+
+
 ## [2026-04-28]
 
 ### Changed
@@ -15,6 +18,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `bin/bin/check_repos.sh`: outputs repos in alphabetical order (collected and sorted before processing); now outputs one line for every repo (clean or with changes), instead of only repos with changes
 - `bin/bin/check_repos.sh`: repos with changes are displayed in bold
 - `bin/bin/check_repos.sh`: displays repo names only (basename), not full paths
+- `bin/bin/validate_setup.sh`: `-u|--update` mode now runs apt package updates first, then dev toolchains (better dependency order)
+- `setup.sh`: silences Ubuntu Pro apt advertisements via `pro config set apt_news=false` and masking `apt-news`/`esm-cache` services (preserves `update-manager-core` etc.)
+- `bin/bin/validate_setup.sh`: checks Pro `apt_news` setting and that apt-news/esm-cache services are masked; offers fix commands for both
+
+### Fixed
+
+- `bin/bin/validate_setup.sh`: fixed dfx update command to use `dfxvm update` (correct command when dfxvm is installed)
 
 ## [2026-04-27]
 

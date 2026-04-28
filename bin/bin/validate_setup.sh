@@ -82,8 +82,13 @@ is_stow_skip() {
 
 if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
     echo ""
-    printf "${BOLD}Updating toolchains and packages${NC}\n"
+    printf "${BOLD}Updating packages and toolchains${NC}\n"
 
+    # 1. APT packages first (dependencies for other tools)
+    printf "\n${CYAN}Updating apt packages${NC}\n"
+    sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
+
+    # 2. Dev toolchains
     if [[ "$INSTALL_RUST" == true ]] && command -v rustup >/dev/null 2>&1; then
         printf "\n${CYAN}Updating Rust${NC}\n"
         rustup update
@@ -97,13 +102,9 @@ if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
     fi
 
     if [[ "$INSTALL_ICP" == true ]] && command -v dfxvm >/dev/null 2>&1; then
-        printf "\n${CYAN}Updating dfxvm${NC}\n"
-        dfxvm self-upgrade || true
+        printf "\n${CYAN}Updating dfx (DFINITY SDK)${NC}\n"
+        dfxvm update || true
     fi
-
-    # Python packages are managed by apt (PEP 668 prevents pip from updating system packages)
-    printf "\n${CYAN}Updating apt packages${NC}\n"
-    sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
 
     echo ""
     printf "${GREEN}${BOLD}Updates complete!${NC}\n\n"
@@ -159,6 +160,33 @@ if [ -d "$DOTFILES_DIR/.git" ]; then
     else
         print_row "Remote URL" "${YELLOW}⚠ Not SSH${NC}" "$current_remote"
         missing_items+=("dotfiles-ssh-remote")
+    fi
+fi
+
+# --- System Configuration ---
+print_header "System Configuration"
+
+# Check that Ubuntu Pro apt_news is disabled (silences apt advertisements)
+if command -v pro >/dev/null 2>&1; then
+    apt_news=$(pro config show 2>/dev/null | awk '$1=="apt_news" {print tolower($NF)}')
+    if [ "$apt_news" = "false" ]; then
+        print_row "Pro apt_news" "${GREEN}✓ Disabled${NC}" ""
+    else
+        print_row "Pro apt_news" "${YELLOW}⚠ Enabled${NC}" "apt advertisements shown"
+        missing_items+=("pro-apt-news")
+    fi
+
+    # Check that apt-news / esm-cache services are masked (belt-and-suspenders)
+    masked_count=0
+    for svc in apt-news.service esm-cache.service; do
+        load_state=$(systemctl show "$svc" --property=LoadState --value 2>/dev/null)
+        [ "$load_state" = "masked" ] && masked_count=$((masked_count+1))
+    done
+    if [ "$masked_count" -eq 2 ]; then
+        print_row "apt-news / esm-cache" "${GREEN}✓ Masked${NC}" ""
+    else
+        print_row "apt-news / esm-cache" "${YELLOW}⚠ Not masked${NC}" "may run during apt operations"
+        missing_items+=("pro-mask-services")
     fi
 fi
 
@@ -495,6 +523,20 @@ if [ ${#prereqs[@]} -gt 0 ]; then
     printf "\n  ${CYAN}# Install prerequisites${NC}\n"
     echo "  sudo apt install -y ${prereqs[*]}"
 fi
+
+# 1b. System configuration
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        pro-apt-news)
+            printf "\n  ${CYAN}# Disable Ubuntu Pro apt advertisements${NC}\n"
+            echo "  sudo pro config set apt_news=false"
+            ;;
+        pro-mask-services)
+            printf "\n  ${CYAN}# Mask Pro apt-news / esm-cache services${NC}\n"
+            echo "  sudo systemctl mask apt-news.service esm-cache.service"
+            ;;
+    esac
+done
 
 # 2. Dotfiles repo
 for item in "${unique_items[@]}"; do

@@ -57,6 +57,12 @@ source "$CONFIG_FILE"
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
+# Disable Ubuntu Pro apt advertisements (keep the package, just silence it)
+if command -v pro >/dev/null 2>&1; then
+    sudo pro config set apt_news=false 2>/dev/null || true
+    sudo systemctl mask apt-news.service esm-cache.service 2>/dev/null || true
+fi
+
 # Create the sourcing snippet
 # We use a heredoc to define what needs to be added to .bashrc
 BASHDOT=$(cat <<EOF
