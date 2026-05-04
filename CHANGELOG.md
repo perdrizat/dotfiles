@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+## [2026-05-02]
+
+### Added
+
+- `setup.sh`: install glow (markdown CLI pager) from Charm's apt repo, instead of batcat
+- `bin/bin/validate_setup.sh`: check for glow installation with fix command that sets up Charm repo
+
 
 ## [2026-04-28]
 

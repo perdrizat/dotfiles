@@ -387,6 +387,15 @@ if [ -n "$MORE_APT_PACKAGES" ]; then
     done
 fi
 
+# Check glow (from Charm apt repo)
+if dpkg -s glow >/dev/null 2>&1; then
+    ver=$(dpkg -s glow 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+    print_row "glow (charm)" "${GREEN}✓ Installed${NC}" "$ver"
+else
+    print_row "glow (charm)" "${RED}✗ Missing${NC}" ""
+    missing_items+=("install-glow")
+fi
+
 # --- Dev Toolchains ---
 print_header "Dev Toolchains"
 
@@ -675,6 +684,10 @@ for item in "${unique_items[@]}"; do
         docker-group)
             printf "\n  ${CYAN}# Add user to docker group (logout/login to take effect)${NC}\n"
             echo "  sudo usermod -aG docker \$USER"
+            ;;
+        install-glow)
+            printf "\n  ${CYAN}# Install glow (markdown pager from Charm apt repo)${NC}\n"
+            echo '  sudo mkdir -p /etc/apt/keyrings && curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg && echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list && sudo apt update && sudo apt install -y glow'
             ;;
     esac
 done

@@ -8,7 +8,7 @@ DOTFILES_DIR="$HOME/dotfiles"
 
 # --- Shared variables (also used by validate_setup.sh) ---
 PREREQS=(git curl stow age unzip)
-APT_PACKAGES=(build-essential bat jq)
+APT_PACKAGES=(build-essential jq)
 STOW_SKIP=(.git agent claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
@@ -163,6 +163,15 @@ if [ -n "$MORE_APT_PACKAGES" ]; then
 fi
 
 dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || sudo apt install -y "${apt_install[@]}"
+
+# --- Glow (markdown pager from Charm apt repo) ---
+if ! command -v glow >/dev/null 2>&1; then
+    echo "Setting up Charm apt repo for glow..."
+    sudo mkdir -p /etc/apt/keyrings
+    [ -f /etc/apt/keyrings/charm.gpg ] || curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+    [ -f /etc/apt/sources.list.d/charm.list ] || echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
+    sudo apt update && sudo apt install -y glow  # apt update needed: new repo just added
+fi
 
 # Add current user to docker group (requires logout/login to take effect)
 if [[ "$INSTALL_DOCKER" == true ]] && ! id -nG "$USER" | grep -qw docker; then
