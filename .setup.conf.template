@@ -1,0 +1,18 @@
+# Machine-specific setup configuration
+# Edit this file to customize your installation
+# All toggles default to false; set to true to enable
+
+# Dev toolchain toggles
+INSTALL_RUST=false       # rustup → cargo, rustc, rustfmt, clippy
+INSTALL_NODE=false       # fnm → latest LTS Node + npm
+INSTALL_ICP=false        # dfxvm → dfx + ic-admin
+INSTALL_PYTHON=false     # apt python3 + python3-venv
+INSTALL_DOCKER=false     # apt docker-compose-v2
+INSTALL_FF_ESR=false     # Mozilla apt repo → firefox-esr
+
+# LLM agent toggles
+INSTALL_CLAUDE=false     # Claude Code CLI
+INSTALL_GEMINI_CLI=false # Gemini CLI (npm: @google/gemini-cli)
+
+# Additional apt packages (space-separated)
+MORE_APT_PACKAGES=""

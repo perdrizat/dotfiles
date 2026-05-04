@@ -13,14 +13,22 @@ STOW_SKIP=(.git agent claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
 # Install the setup prerequisites if missing (apt update only in -update mode)
-command -v git >/dev/null && command -v curl >/dev/null && command -v stow >/dev/null && command -v age >/dev/null || { sudo apt install -y "${PREREQS[@]}"; }
+_need_prereqs=false
+for _cmd in "${PREREQS[@]}"; do command -v "$_cmd" >/dev/null 2>&1 || { _need_prereqs=true; break; }; done
+$_need_prereqs && echo "Installing prerequisites: ${PREREQS[*]}" && sudo apt-get -qq update && sudo apt-get -qq install -y "${PREREQS[@]}"
 
 # Clone the repo if we aren't already in it
 if [ ! -d "$DOTFILES_DIR" ]; then
     echo "Cloning dotfiles..."
     cd "$HOME" && git clone https://github.com/perdrizat/dotfiles.git
+    cp "$DOTFILES_DIR/.setup.conf.template" "$DOTFILES_DIR/.setup.conf"
+    echo "Customize $DOTFILES_DIR/.setup.conf, then run: bash ~/dotfiles/setup.sh"
 fi
 cd "$DOTFILES_DIR"
+
+# --- Prepare machine-specific config ---
+CONFIG_FILE="$DOTFILES_DIR/.setup.conf"
+[ ! -f "$CONFIG_FILE" ] && cp "$DOTFILES_DIR/.setup.conf.template" "$CONFIG_FILE"
 
 #############################################################################################
 #                                                                                           #
@@ -28,30 +36,10 @@ cd "$DOTFILES_DIR"
 #                                                                                           #
 #############################################################################################
 
-# --- Load machine-specific config (or create default) ---
-CONFIG_FILE="$DOTFILES_DIR/.setup.conf"
-if [ ! -f "$CONFIG_FILE" ]; then
-    cat > "$CONFIG_FILE" << 'CONFIGEOF'
-# Machine-specific setup configuration
-# Edit this file to customize your installation
-# All toggles default to false; set to true to enable
-
-# Dev toolchain toggles
-INSTALL_RUST=false       # rustup → cargo, rustc, rustfmt, clippy
-INSTALL_NODE=false       # fnm → latest LTS Node + npm
-INSTALL_ICP=false        # dfxvm → dfx + ic-admin
-INSTALL_PYTHON=false     # apt python3 + python3-venv
-INSTALL_DOCKER=false     # apt docker-compose-v2
-
-# LLM agent toggles
-INSTALL_CLAUDE=false     # Claude Code CLI
-INSTALL_GEMINI_CLI=false # Gemini CLI (npm: @google/gemini-cli)
-
-# Additional apt packages (space-separated)
+# Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
+INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
+INSTALL_DOCKER=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_GEMINI_CLI=false
 MORE_APT_PACKAGES=""
-CONFIGEOF
-    echo "Created $CONFIG_FILE — customize it then re-run setup.sh"
-fi
 source "$CONFIG_FILE"
 
 # When sourced by validate_setup.sh, stop here
@@ -162,7 +150,7 @@ if [ -n "$MORE_APT_PACKAGES" ]; then
     apt_install+=("${more_pkgs[@]}")
 fi
 
-dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || sudo apt install -y "${apt_install[@]}"
+dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || { echo "Installing APT packages: ${apt_install[*]}" && sudo apt-get -qq install -y "${apt_install[@]}"; }
 
 # --- Glow (markdown pager from Charm apt repo) ---
 if ! command -v glow >/dev/null 2>&1; then
@@ -170,7 +158,17 @@ if ! command -v glow >/dev/null 2>&1; then
     sudo mkdir -p /etc/apt/keyrings
     [ -f /etc/apt/keyrings/charm.gpg ] || curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
     [ -f /etc/apt/sources.list.d/charm.list ] || echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list
-    sudo apt update && sudo apt install -y glow  # apt update needed: new repo just added
+    sudo apt-get -qq update && sudo apt-get -qq install -y glow  # apt update needed: new repo just added
+fi
+
+# --- Firefox ESR (Mozilla apt repo) ---
+if [[ "$INSTALL_FFESR" == true ]] && ! dpkg -s firefox-esr >/dev/null 2>&1; then
+    echo "Setting up Mozilla apt repo for Firefox ESR..."
+    sudo install -d -m 0755 /etc/apt/keyrings
+    [ -f /etc/apt/keyrings/packages.mozilla.org.asc ] || curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null
+    [ -f /etc/apt/sources.list.d/mozilla.list ] || echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null
+    [ -f /etc/apt/preferences.d/mozilla ] || printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' | sudo tee /etc/apt/preferences.d/mozilla
+    sudo apt-get -qq update && sudo apt-get -qq install -y firefox-esr
 fi
 
 # Add current user to docker group (requires logout/login to take effect)

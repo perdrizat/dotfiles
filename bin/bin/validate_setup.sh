@@ -200,6 +200,27 @@ else
     missing_items+=("bashrc-loader")
 fi
 
+# --- Machine Config (.setup.conf vs template) ---
+print_header "Machine Config"
+
+TEMPLATE_FILE="$DOTFILES_DIR/.setup.conf.template"
+if [ -f "$TEMPLATE_FILE" ] && [ -f "$CONFIG_FILE" ]; then
+    conf_missing_keys=()
+    while IFS= read -r line; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+        key="${line%%=*}"
+        grep -q "^${key}=" "$CONFIG_FILE" || conf_missing_keys+=("$key")
+    done < "$TEMPLATE_FILE"
+
+    if [ ${#conf_missing_keys[@]} -eq 0 ]; then
+        print_row ".setup.conf" "${GREEN}✓ Up to date${NC}" "all template keys present"
+    else
+        print_row ".setup.conf" "${YELLOW}⚠ Missing keys${NC}" "${conf_missing_keys[*]}"
+        for k in "${conf_missing_keys[@]}"; do missing_items+=("conf-key-$k"); done
+    fi
+fi
+
 # --- Stow Symlinks (auto-discovered from filesystem) ---
 print_header "Stow Symlinks"
 
@@ -459,6 +480,16 @@ if [[ "$INSTALL_PYTHON" == true ]]; then
     fi
 fi
 
+if [[ "$INSTALL_FF_ESR" == true ]]; then
+    if dpkg -s firefox-esr >/dev/null 2>&1; then
+        ver=$(dpkg -s firefox-esr 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+        print_row "Firefox ESR" "${GREEN}✓ Installed${NC}" "$ver"
+    else
+        print_row "Firefox ESR" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-ffesr")
+    fi
+fi
+
 if [[ "$INSTALL_DOCKER" == true ]]; then
     if dpkg -s docker-compose-v2 >/dev/null 2>&1; then
         dc_ver=$(dpkg -s docker-compose-v2 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
@@ -564,6 +595,17 @@ for item in "${unique_items[@]}"; do
             ;;
     esac
 done
+
+# 2b. Machine config — append missing keys from template
+conf_keys=()
+for item in "${unique_items[@]}"; do
+    case "$item" in conf-key-*) conf_keys+=("${item#conf-key-}") ;; esac
+done
+if [ ${#conf_keys[@]} -gt 0 ]; then
+    printf "\n  ${CYAN}# Add missing keys to .setup.conf (appends defaults from template)${NC}\n"
+    printf "  # Missing: %s\n" "${conf_keys[*]}"
+    echo "  grep -E '^[A-Z_]+=' ~/dotfiles/.setup.conf.template | while IFS='=' read -r key _; do grep -q \"^\${key}=\" ~/dotfiles/.setup.conf || grep \"^\${key}=\" ~/dotfiles/.setup.conf.template >> ~/dotfiles/.setup.conf; done"
+fi
 
 # 3. Stow symlinks (auto-collected from fix IDs)
 stow_packages=()
@@ -672,6 +714,10 @@ for item in "${unique_items[@]}"; do
         install-ic-admin)
             printf "\n  ${CYAN}# Install ic-admin${NC}\n"
             echo '  mkdir -p ~/.local/bin && curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ~/.local/bin/ic-admin && chmod 0755 ~/.local/bin/ic-admin'
+            ;;
+        install-ffesr)
+            printf "\n  ${CYAN}# Install Firefox ESR (Mozilla apt repo)${NC}\n"
+            echo '  sudo install -d -m 0755 /etc/apt/keyrings && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null && printf '"'"'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n'"'"' | sudo tee /etc/apt/preferences.d/mozilla && sudo apt update && sudo apt install -y firefox-esr'
             ;;
         install-python)
             printf "\n  ${CYAN}# Install Python + pip + venv${NC}\n"

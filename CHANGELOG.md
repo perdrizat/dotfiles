@@ -6,9 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+## [2026-05-04]
+
 ### Fixed
 
-### Changed
+- `setup.sh`: prereq check now loops over the full `PREREQS` array instead of hardcoding 4 of 5 commands, so `unzip` (needed by the fnm installer) is no longer silently skipped
+- `setup.sh`: run `apt update` before installing prerequisites so packages like `age` and `stow` are found on a fresh machine
+
+### Added
+
+- `setup.sh` / `.setup.conf.template`: replace heredoc-generated config with a tracked template file; setup copies it on first clone so the user can configure the machine before the first full run
+- `setup.sh` / `validate_setup.sh` / `.setup.conf.template`: add `INSTALL_FFESR` toggle to install Firefox ESR from the Mozilla apt repo
+- `validate_setup.sh`: new "Machine Config" section checks `.setup.conf` against the template and reports any missing keys, with a fix command that appends the missing defaults
 
 ## [2026-05-02]
 
