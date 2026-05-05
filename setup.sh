@@ -162,7 +162,7 @@ if ! command -v glow >/dev/null 2>&1; then
 fi
 
 # --- Firefox ESR (Mozilla apt repo) ---
-if [[ "$INSTALL_FFESR" == true ]] && ! dpkg -s firefox-esr >/dev/null 2>&1; then
+if [[ "$INSTALL_FF_ESR" == true ]] && ! dpkg -s firefox-esr >/dev/null 2>&1; then
     echo "Setting up Mozilla apt repo for Firefox ESR..."
     sudo install -d -m 0755 /etc/apt/keyrings
     [ -f /etc/apt/keyrings/packages.mozilla.org.asc ] || curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null

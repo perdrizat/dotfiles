@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-### Changed
+## [2026-05-05]
+
+### Fixed
+
+- `setup.sh`: Firefox ESR install variable name mismatch (`INSTALL_FFESR` → `INSTALL_FF_ESR`); previously install never ran
+- `bin/bin/validate_setup.sh`: Node validation now also checks `npm` and verifies Node/npm actually run (not just on PATH); catches partial fnm installs
+- `bin/bin/validate_setup.sh`: ssh-decrypt fix command now also regenerates the public key in the same command (avoids two-step prompt)
 
 ## [2026-05-04]
 

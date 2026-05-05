@@ -439,10 +439,17 @@ if [[ "$INSTALL_NODE" == true ]]; then
         print_row "fnm" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-fnm")
     fi
-    if command -v node >/dev/null 2>&1; then
+    # Node and npm both come from fnm — must be present and runnable
+    if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
         print_row "Node" "${GREEN}✓ Installed${NC}" "$(node --version 2>/dev/null)"
     else
-        print_row "Node" "${RED}✗ Missing${NC}" ""
+        print_row "Node" "${RED}✗ Missing${NC}" "no active Node version"
+        missing_items+=("install-node")
+    fi
+    if command -v npm >/dev/null 2>&1 && npm --version >/dev/null 2>&1; then
+        print_row "npm" "${GREEN}✓ Installed${NC}" "$(npm --version 2>/dev/null)"
+    else
+        print_row "npm" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-node")
     fi
     if command -v vite >/dev/null 2>&1; then
@@ -636,10 +643,15 @@ for item in "${unique_items[@]}"; do
 done
 if $ssh_fixes; then
     printf "\n  ${CYAN}# Fix SSH${NC}\n"
+    # If we need to decrypt, the public key must also be regenerated — combine into one command
+    has_decrypt=false
+    for item in "${unique_items[@]}"; do
+        [[ "$item" == "ssh-decrypt" ]] && has_decrypt=true && break
+    done
     for item in "${unique_items[@]}"; do
         case "$item" in
-            ssh-decrypt)        echo "  age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519" ;;
-            ssh-regen-pub)      echo "  ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
+            ssh-decrypt)        echo "  age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519 && ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
+            ssh-regen-pub)      $has_decrypt || echo "  ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
             ssh-dir-perms)      echo "  chmod 700 ~/.ssh" ;;
             ssh-stow-dir-perms) echo "  chmod 700 ~/dotfiles/ssh/.ssh" ;;
             ssh-key-perms)      echo "  chmod 600 ~/.ssh/id_ed25519" ;;
