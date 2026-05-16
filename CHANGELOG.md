@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-05-16]
+
+### Fixed
+
+- `expand_wsl_disk.sh`: ensure script works when FS is full already. Plus misc bugfixes
+
 ## [2026-05-05]
 
 ### Fixed

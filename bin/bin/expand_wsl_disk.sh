@@ -10,13 +10,13 @@
 
 set -uo pipefail
 
-# --- Colors ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
+# --- Colors (ANSI-C quoted so escape chars are real ESC, not literal '\033') ---
+RED=$'\033[0;31m'
+GREEN=$'\033[0;32m'
+YELLOW=$'\033[1;33m'
+CYAN=$'\033[0;36m'
+BOLD=$'\033[1m'
+NC=$'\033[0m'
 
 # --- Functions ---
 
@@ -114,6 +114,17 @@ get_filesystem_size() {
     awk "BEGIN {printf \"%.0f\", $size_kb / 1024 / 1024}"
 }
 
+# Get Linux block device size in MiB (reflects VHDX max capacity, not file size)
+get_block_device_size_mib() {
+    local device="$1"  # e.g., /dev/sdd
+    local devname
+    devname=$(basename "$device")
+    local sectors
+    sectors=$(cat "/sys/block/$devname/size" 2>/dev/null || echo 0)
+    # 512-byte sectors -> MiB
+    echo $((sectors * 512 / 1024 / 1024))
+}
+
 # Get current VHDX file size in MB (for reference/info)
 get_vhdx_size() {
     local vhdx_path="$1"
@@ -144,27 +155,39 @@ prompt_for_size() {
 expand_vhdx() {
     local vhdx_path="$1"
     local new_mb="$2"
+    local root_device="$3"
 
-    # Create a temp diskpart script
-    local temp_script
-    temp_script=$(mktemp)
-    trap "rm -f $temp_script" EXIT
+    # Record block device size before to verify expansion succeeded.
+    # Use the Linux block device size, NOT the VHDX file size — the VHDX file
+    # is sparse, so its physical size doesn't track max capacity changes.
+    local size_before_mib
+    size_before_mib=$(get_block_device_size_mib "$root_device")
 
-    cat > "$temp_script" <<EOF
-select vdisk file="$vhdx_path"
+    # Write the diskpart script to the Windows TEMP directory (not WSL /tmp)
+    # This avoids failures when the WSL filesystem is full
+    local diskpart_content="select vdisk file=\"$vhdx_path\"
 expand vdisk maximum=$new_mb
-exit
-EOF
+exit"
 
-    # Convert the Linux path to Windows path
+    print_info "Writing diskpart script to Windows TEMP..."
     local win_script
-    win_script=$(wslpath -w "$temp_script")
+    win_script=$(powershell.exe -Command "
+        \$path = Join-Path \$env:TEMP 'wsl_expand_diskpart.txt'
+        Set-Content -Path \$path -Value @'
+$diskpart_content
+'@ -NoNewline
+        if (Test-Path \$path) { Write-Output \$path } else { Write-Output 'WRITE_FAILED' }
+    " 2>/dev/null | sed 's/[[:space:]]*$//')
 
-    print_info "Wrote diskpart script to: $win_script"
+    if [ -z "$win_script" ] || [ "$win_script" = "WRITE_FAILED" ]; then
+        print_error "Failed to write diskpart script to Windows TEMP"
+        exit 1
+    fi
+
+    print_info "Diskpart script: $win_script"
     print_info "Running diskpart with Windows admin elevation (UAC prompt on Windows)..."
 
     # Run diskpart with elevation
-    # Note: -Verb RunAs requires Windows Terminal or similar to handle UAC
     powershell.exe -Command "Start-Process -FilePath 'diskpart.exe' -ArgumentList '/s \"$win_script\"' -Verb RunAs -Wait" 2>/dev/null
 
     if [ $? -ne 0 ]; then
@@ -172,7 +195,20 @@ EOF
         exit 1
     fi
 
-    print_success "VHDX expanded successfully"
+    # Clean up the diskpart script
+    powershell.exe -Command "Remove-Item '$win_script' -ErrorAction SilentlyContinue" 2>/dev/null
+
+    # Verify the block device was actually expanded
+    local size_after_mib
+    size_after_mib=$(get_block_device_size_mib "$root_device")
+
+    if [ "$size_after_mib" -le "$size_before_mib" ]; then
+        print_error "Block device did not grow (before: ${size_before_mib} MiB, after: ${size_after_mib} MiB)"
+        print_error "diskpart likely failed silently or was cancelled. Check Windows event log."
+        exit 1
+    fi
+
+    print_success "Block device expanded: ${size_before_mib} MiB -> ${size_after_mib} MiB"
 }
 
 # Resize the filesystem
@@ -195,14 +231,17 @@ show_disk_usage() {
 
 # Main flow
 main() {
-    print_header "WSL2 Disk Expansion"
+    if [ "$DRY_RUN" = true ]; then
+        print_header "WSL2 Disk Expansion (DRY RUN)"
+    else
+        print_header "WSL2 Disk Expansion"
+    fi
 
     check_wsl
 
     local root_device
     root_device=$(get_root_device)
     local vhdx_path
-    local current_mb
     local new_mb
 
     print_info "Finding VHDX path..."
@@ -218,7 +257,14 @@ main() {
     print_success "Current filesystem size: $current_gib GiB"
     print_info "VHDX file size: $vhdx_gib GiB ($vhdx_mb MiB)"
 
+    # If dry-run with no size argument, just show current state and exit
+    if [ "$DRY_RUN" = true ] && [ $# -eq 0 ]; then
+        print_info "Run without -d/--dry-run to actually expand"
+        return 0
+    fi
+
     # Get desired size from argument or prompt
+    local new_gib
     if [ $# -ge 1 ]; then
         new_gib=$(size_to_mb "$1")
         new_gib=$((new_gib / 1024))  # Convert MB result to GiB
@@ -234,7 +280,16 @@ main() {
     fi
 
     # Convert GiB back to MB for diskpart
-    local new_mb=$((new_gib * 1024))
+    new_mb=$((new_gib * 1024))
+
+    if [ "$DRY_RUN" = true ]; then
+        printf "\n${BOLD}Would do:${NC}\n"
+        printf '  VHDX: %s\n' "$vhdx_path"
+        printf '  Current size: %d GiB\n' "$current_gib"
+        printf '  New size: %d GiB\n' "$new_gib"
+        print_info "Run without -d/--dry-run to actually expand"
+        return 0
+    fi
 
     # Confirm before proceeding
     printf "\n${BOLD}Confirm:${NC}\n"
@@ -250,26 +305,30 @@ main() {
         exit 0
     fi
 
-    expand_vhdx "$vhdx_path" "$new_mb"
+    expand_vhdx "$vhdx_path" "$new_mb" "$root_device"
     resize_filesystem "$root_device"
     show_disk_usage
 
     print_success "Done!"
 }
 
-# Handle help and dryrun flags
-case "${1:-}" in
-    --help|-h)
-        cat <<EOF
-${BOLD}Usage:${NC} $(basename "$0") [SIZE]
+show_help() {
+    cat <<EOF
+${BOLD}Usage:${NC} $(basename "$0") [OPTIONS] [SIZE]
+
+${BOLD}Options:${NC}
+  -h, --help              Show this help and exit
+  -d, --dry-run           Show what would happen without actually expanding
 
 ${BOLD}Arguments:${NC}
   SIZE    New disk size (e.g., 50, 100G, 200GB). Omit to be prompted.
 
 ${BOLD}Examples:${NC}
-  $(basename "$0")          # prompt for size
-  $(basename "$0") 50       # expand to 50 GB
-  $(basename "$0") 100G     # expand to 100 GB
+  $(basename "$0")              # prompt for size
+  $(basename "$0") 50           # expand to 50 GiB
+  $(basename "$0") 100G         # expand to 100 GiB
+  $(basename "$0") -d           # dry-run, show current state
+  $(basename "$0") -d 20        # dry-run, show what 20 GiB expansion would do
 
 ${BOLD}Requirements:${NC}
   - WSL2 (Windows Subsystem for Linux 2)
@@ -283,28 +342,41 @@ ${BOLD}What it does:${NC}
 
 ${BOLD}Notes:${NC}
   - A UAC prompt will appear on Windows
-  - You may need to log out and back in for the new space to appear
   - The filesystem resize is automatic on modern WSL2
 EOF
-        exit 0
-        ;;
-    --dryrun)
-        print_header "WSL2 Disk Expansion (DRY RUN)"
-        check_wsl
-        vhdx_path=$(find_vhdx_path "$WSL_DISTRO_NAME")
-        current_gib=$(get_filesystem_size)
-        vhdx_mb=$(get_vhdx_size "$vhdx_path")
-        vhdx_gib=$((vhdx_mb / 1024))
-        print_success "Found VHDX: $vhdx_path"
-        print_success "Current filesystem size: $current_gib GiB"
-        print_info "VHDX file size: $vhdx_gib GiB ($vhdx_mb MiB)"
-        print_info "Run without --dryrun to actually expand"
-        exit 0
-        ;;
-    "")
-        main
-        ;;
-    *)
-        main "$1"
-        ;;
-esac
+}
+
+# Parse arguments
+DRY_RUN=false
+SIZE_ARG=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -d|--dry-run|--dryrun)
+            DRY_RUN=true
+            ;;
+        -*)
+            print_error "Unknown option: $1"
+            echo "Run '$(basename "$0") --help' for usage." >&2
+            exit 1
+            ;;
+        *)
+            if [ -n "$SIZE_ARG" ]; then
+                print_error "Multiple size arguments given: '$SIZE_ARG' and '$1'"
+                exit 1
+            fi
+            SIZE_ARG="$1"
+            ;;
+    esac
+    shift
+done
+
+if [ -n "$SIZE_ARG" ]; then
+    main "$SIZE_ARG"
+else
+    main
+fi
