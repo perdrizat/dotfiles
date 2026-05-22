@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-05-22]
+
+### Added
+
+- `setup.sh`: installs GitHub CLI (`gh`) by default from official GitHub apt repo
+- `bin/bin/validate_setup.sh`: checks for `gh` (GitHub CLI) and provides install fix command
+
 ## [2026-05-16]
 
 ### Fixed

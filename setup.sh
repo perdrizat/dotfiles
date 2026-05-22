@@ -161,6 +161,16 @@ if ! command -v glow >/dev/null 2>&1; then
     sudo apt-get -qq update && sudo apt-get -qq install -y glow  # apt update needed: new repo just added
 fi
 
+# --- GitHub CLI (from GitHub apt repo) ---
+if ! command -v gh >/dev/null 2>&1; then
+    echo "Setting up GitHub apt repo for gh..."
+    sudo mkdir -p -m 755 /etc/apt/keyrings
+    [ -f /etc/apt/keyrings/githubcli-archive-keyring.gpg ] || curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+    sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    [ -f /etc/apt/sources.list.d/github-cli.list ] || echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    sudo apt-get -qq update && sudo apt-get -qq install -y gh  # apt update needed: new repo just added
+fi
+
 # --- Firefox ESR (Mozilla apt repo) ---
 if [[ "$INSTALL_FF_ESR" == true ]] && ! dpkg -s firefox-esr >/dev/null 2>&1; then
     echo "Setting up Mozilla apt repo for Firefox ESR..."

@@ -417,6 +417,15 @@ else
     missing_items+=("install-glow")
 fi
 
+# Check gh (GitHub CLI from GitHub apt repo)
+if dpkg -s gh >/dev/null 2>&1; then
+    ver=$(dpkg -s gh 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+    print_row "gh (github cli)" "${GREEN}✓ Installed${NC}" "$ver"
+else
+    print_row "gh (github cli)" "${RED}✗ Missing${NC}" ""
+    missing_items+=("install-gh")
+fi
+
 # --- Dev Toolchains ---
 print_header "Dev Toolchains"
 
@@ -746,6 +755,10 @@ for item in "${unique_items[@]}"; do
         install-glow)
             printf "\n  ${CYAN}# Install glow (markdown pager from Charm apt repo)${NC}\n"
             echo '  sudo mkdir -p /etc/apt/keyrings && curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg && echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list && sudo apt update && sudo apt install -y glow'
+            ;;
+        install-gh)
+            printf "\n  ${CYAN}# Install gh (GitHub CLI from GitHub apt repo)${NC}\n"
+            echo '  sudo mkdir -p -m 755 /etc/apt/keyrings && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt update && sudo apt install -y gh'
             ;;
     esac
 done
