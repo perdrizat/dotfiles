@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-05-26]
+
+### Fixed
+
+- `bin/bin/expand_wsl_disk.sh`: rescan the SCSI block device upfront so prior VHDX expansions Linux missed are picked up; skip diskpart entirely when the block device is already at or above the requested size (previously diskpart errored with `E_INVALIDARG`/"parameter incorrect" trying to re-expand a VHDX that was already at the target)
+
 ## [2026-05-22]
 
 ### Added

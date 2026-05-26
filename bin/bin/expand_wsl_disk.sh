@@ -125,6 +125,20 @@ get_block_device_size_mib() {
     echo $((sectors * 512 / 1024 / 1024))
 }
 
+# Force the Linux kernel to re-read the SCSI device size (idempotent).
+# Critical when the VHDX was expanded earlier but Linux didn't pick up the new
+# capacity — without this, /sys/block/<dev>/size stays stale and df reports
+# the old size even though Windows already grew the VHDX.
+rescan_block_device() {
+    local device="$1"
+    local devname
+    devname=$(basename "$device")
+    local rescan_path="/sys/block/$devname/device/rescan"
+    if [ -e "$rescan_path" ]; then
+        echo 1 | sudo tee "$rescan_path" >/dev/null 2>&1 || true
+    fi
+}
+
 # Get current VHDX file size in MB (for reference/info)
 get_vhdx_size() {
     local vhdx_path="$1"
@@ -187,27 +201,48 @@ $diskpart_content
     print_info "Diskpart script: $win_script"
     print_info "Running diskpart with Windows admin elevation (UAC prompt on Windows)..."
 
-    # Run diskpart with elevation
-    powershell.exe -Command "Start-Process -FilePath 'diskpart.exe' -ArgumentList '/s \"$win_script\"' -Verb RunAs -Wait" 2>/dev/null
+    # Run diskpart with elevation, capturing exit code and output via a log file
+    # (Start-Process -Verb RunAs opens a new console that closes immediately; redirect to a log)
+    local ps_output
+    ps_output=$(powershell.exe -Command "
+        \$log = Join-Path \$env:TEMP 'wsl_expand_diskpart.log'
+        \$cmdArg = '/c diskpart /s \"$win_script\" > \"' + \$log + '\" 2>&1'
+        \$proc = Start-Process -FilePath 'cmd.exe' -ArgumentList \$cmdArg -Verb RunAs -Wait -PassThru
+        Write-Output \"EXITCODE=\$(\$proc.ExitCode)\"
+        Write-Output \"LOGPATH=\$log\"
+        if (Test-Path \$log) { Write-Output '---DISKPART LOG---'; Get-Content \$log }
+    " 2>&1)
 
-    if [ $? -ne 0 ]; then
-        print_error "diskpart failed or was cancelled"
+    # Strip Windows CRLF that PowerShell emits when piped to non-PowerShell consumers
+    ps_output=$(printf '%s' "$ps_output" | tr -d '\r')
+
+    # Surface diskpart's actual output for diagnosis
+    printf "${CYAN}--- diskpart raw output ---${NC}\n%s\n${CYAN}---------------------------${NC}\n" "$ps_output"
+
+    # Parse exit code (we keep the script + log on failure for inspection)
+    local diskpart_exit
+    diskpart_exit=$(echo "$ps_output" | awk -F= '/^EXITCODE=/ {print $2; exit}')
+
+    if [ -z "$diskpart_exit" ] || [ "$diskpart_exit" != "0" ]; then
+        print_error "diskpart exited with code: ${diskpart_exit:-unknown}"
+        print_error "Script kept for inspection: $win_script"
         exit 1
     fi
 
-    # Clean up the diskpart script
-    powershell.exe -Command "Remove-Item '$win_script' -ErrorAction SilentlyContinue" 2>/dev/null
-
-    # Verify the block device was actually expanded
+    # Rescan so the kernel picks up the new VHDX max capacity
+    rescan_block_device "$root_device"
     local size_after_mib
     size_after_mib=$(get_block_device_size_mib "$root_device")
 
     if [ "$size_after_mib" -le "$size_before_mib" ]; then
         print_error "Block device did not grow (before: ${size_before_mib} MiB, after: ${size_after_mib} MiB)"
-        print_error "diskpart likely failed silently or was cancelled. Check Windows event log."
+        print_error "diskpart returned success — check the log above for what actually happened."
+        print_error "Script kept for inspection: $win_script"
         exit 1
     fi
 
+    # Clean up only on success
+    powershell.exe -Command "Remove-Item '$win_script' -ErrorAction SilentlyContinue" 2>/dev/null
     print_success "Block device expanded: ${size_before_mib} MiB -> ${size_after_mib} MiB"
 }
 
@@ -248,14 +283,18 @@ main() {
     vhdx_path=$(find_vhdx_path "$WSL_DISTRO_NAME")
     print_success "Found: $vhdx_path"
 
-    print_info "Getting current filesystem size..."
-    local current_gib
-    current_gib=$(get_filesystem_size)
-    local vhdx_mb
-    vhdx_mb=$(get_vhdx_size "$vhdx_path")
-    local vhdx_gib=$((vhdx_mb / 1024))
-    print_success "Current filesystem size: $current_gib GiB"
-    print_info "VHDX file size: $vhdx_gib GiB ($vhdx_mb MiB)"
+    # Rescan the block device first — picks up any prior VHDX expansion the
+    # kernel missed, so we don't try to re-run diskpart against a VHDX that's
+    # already at the target (which fails with E_INVALIDARG).
+    print_info "Rescanning block device to refresh kernel view..."
+    rescan_block_device "$root_device"
+
+    local current_block_mib
+    current_block_mib=$(get_block_device_size_mib "$root_device")
+    local current_block_gib=$((current_block_mib / 1024))
+    local current_fs_gib
+    current_fs_gib=$(get_filesystem_size)
+    print_success "Block device: $current_block_gib GiB ($current_block_mib MiB); filesystem: $current_fs_gib GiB"
 
     # If dry-run with no size argument, just show current state and exit
     if [ "$DRY_RUN" = true ] && [ $# -eq 0 ]; then
@@ -269,32 +308,48 @@ main() {
         new_gib=$(size_to_mb "$1")
         new_gib=$((new_gib / 1024))  # Convert MB result to GiB
     else
-        new_gib=$(prompt_for_size "$current_gib")
+        new_gib=$(prompt_for_size "$current_fs_gib")
     fi
 
-    print_info "Requested new size: $new_gib GiB"
-
-    if [ "$new_gib" -le "$current_gib" ]; then
-        print_error "New size must be larger than current size ($current_gib GiB)"
-        exit 1
-    fi
-
-    # Convert GiB back to MB for diskpart
+    print_info "Requested size: $new_gib GiB"
     new_mb=$((new_gib * 1024))
+
+    # If everything is already at the requested size, nothing to do.
+    if [ "$new_gib" -le "$current_fs_gib" ] && [ "$new_mb" -le "$current_block_mib" ]; then
+        print_success "Already at or above requested size — nothing to do."
+        return 0
+    fi
 
     if [ "$DRY_RUN" = true ]; then
         printf "\n${BOLD}Would do:${NC}\n"
         printf '  VHDX: %s\n' "$vhdx_path"
-        printf '  Current size: %d GiB\n' "$current_gib"
-        printf '  New size: %d GiB\n' "$new_gib"
+        printf '  Current block: %d GiB; FS: %d GiB\n' "$current_block_gib" "$current_fs_gib"
+        printf '  Target: %d GiB\n' "$new_gib"
+        if [ "$new_mb" -le "$current_block_mib" ]; then
+            printf '  Plan: rescan + resize2fs only (block device already large enough)\n'
+        else
+            printf '  Plan: diskpart expand + rescan + resize2fs\n'
+        fi
         print_info "Run without -d/--dry-run to actually expand"
         return 0
     fi
 
-    # Confirm before proceeding
+    # Skip diskpart entirely if the block device is already big enough.
+    # Common case: a previous expand succeeded on Windows but the kernel
+    # didn't pick up the new size until the rescan above.
+    if [ "$new_mb" -le "$current_block_mib" ]; then
+        print_info "Block device already at $current_block_gib GiB (>= requested $new_gib GiB)"
+        print_info "Skipping diskpart — just resizing the filesystem"
+        resize_filesystem "$root_device"
+        show_disk_usage
+        print_success "Done!"
+        return 0
+    fi
+
+    # Confirm before proceeding with diskpart
     printf "\n${BOLD}Confirm:${NC}\n"
     printf '  VHDX: %s\n' "$vhdx_path"
-    printf '  Current size: %d GiB\n' "$current_gib"
+    printf '  Current block: %d GiB; FS: %d GiB\n' "$current_block_gib" "$current_fs_gib"
     printf '  New size: %d GiB\n' "$new_gib"
     printf "${YELLOW}This requires Windows admin elevation (UAC prompt).${NC}\n"
     printf "Proceed? (y/n) [n]: "
