@@ -468,6 +468,12 @@ if [[ "$INSTALL_NODE" == true ]]; then
         print_row "vite" "${RED}✗ Missing${NC}" ""
         missing_items+=("install-vite")
     fi
+    if command -v pnpm >/dev/null 2>&1 && pnpm --version >/dev/null 2>&1; then
+        print_row "pnpm" "${GREEN}✓ Installed${NC}" "$(pnpm --version 2>/dev/null)"
+    else
+        print_row "pnpm" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-pnpm")
+    fi
 fi
 
 if [[ "$INSTALL_ICP" == true ]]; then
@@ -496,7 +502,15 @@ if [[ "$INSTALL_PYTHON" == true ]]; then
     fi
 fi
 
-if [[ "$INSTALL_FF_ESR" == true ]]; then
+# For now either Firefox toggle installs & checks both the latest and ESR builds.
+if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
+    if dpkg -s firefox >/dev/null 2>&1; then
+        ver=$(dpkg -s firefox 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+        print_row "Firefox (latest)" "${GREEN}✓ Installed${NC}" "$ver"
+    else
+        print_row "Firefox (latest)" "${RED}✗ Missing${NC}" ""
+        missing_items+=("install-ff")
+    fi
     if dpkg -s firefox-esr >/dev/null 2>&1; then
         ver=$(dpkg -s firefox-esr 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
         print_row "Firefox ESR" "${GREEN}✓ Installed${NC}" "$ver"
@@ -728,6 +742,10 @@ for item in "${unique_items[@]}"; do
             printf "\n  ${CYAN}# Install vite${NC}\n"
             echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && npm install -g vite"
             ;;
+        install-pnpm)
+            printf "\n  ${CYAN}# Install pnpm${NC}\n"
+            echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && npm install -g pnpm"
+            ;;
         install-icp)
             printf "\n  ${CYAN}# Install dfxvm (DFINITY SDK)${NC}\n"
             echo '  sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"'
@@ -735,6 +753,10 @@ for item in "${unique_items[@]}"; do
         install-ic-admin)
             printf "\n  ${CYAN}# Install ic-admin${NC}\n"
             echo '  mkdir -p ~/.local/bin && curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ~/.local/bin/ic-admin && chmod 0755 ~/.local/bin/ic-admin'
+            ;;
+        install-ff)
+            printf "\n  ${CYAN}# Install Firefox latest (Mozilla apt repo)${NC}\n"
+            echo '  sudo install -d -m 0755 /etc/apt/keyrings && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null && printf '"'"'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n'"'"' | sudo tee /etc/apt/preferences.d/mozilla && sudo apt update && sudo apt install -y firefox'
             ;;
         install-ffesr)
             printf "\n  ${CYAN}# Install Firefox ESR (Mozilla apt repo)${NC}\n"

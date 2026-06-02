@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-02]
+
+### Added
+
+- `INSTALL_FF` toggle (`.setup.conf` + template) for Firefox latest from the Mozilla apt repo; for now either `INSTALL_FF` or `INSTALL_FF_ESR` installs & validates both the latest and ESR builds
+- `setup.sh`: installs `pnpm` globally via npm alongside `vite` in the Node toggle block
+- `bin/bin/validate_setup.sh`: validates `pnpm` (and prints an install fix command) when `INSTALL_NODE=true`
+- `bin/bin/test_setup_toggles.sh`: tests that `pnpm` is gated on the Node toggle
+
+### Fixed
+
+- `setup.sh`: `CONFIG_FILE` is now overridable via `DOTFILES_CONFIG` so tests can drive toggles from a temp config (the toggle-sourcing refactor in 2c6360a had made env-var overrides ineffective — `.setup.conf` was sourced unconditionally over them)
+- `bin/bin/test_setup_toggles.sh`: rewritten to drive toggles through a temp `DOTFILES_CONFIG`, making the toggle tests hermetic (independent of the machine's `.setup.conf`); the negative-toggle cases had silently regressed; also match the `Claude Code CLI` row instead of `Claude Code` (which collides with the always-on `Claude Code Configuration` section)
+
 ## [2026-05-26]
 
 ### Fixed

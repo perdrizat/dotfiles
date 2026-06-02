@@ -27,7 +27,8 @@ fi
 cd "$DOTFILES_DIR"
 
 # --- Prepare machine-specific config ---
-CONFIG_FILE="$DOTFILES_DIR/.setup.conf"
+# Path is overridable via DOTFILES_CONFIG so tests can drive toggles from a temp config.
+CONFIG_FILE="${DOTFILES_CONFIG:-$DOTFILES_DIR/.setup.conf}"
 [ ! -f "$CONFIG_FILE" ] && cp "$DOTFILES_DIR/.setup.conf.template" "$CONFIG_FILE"
 
 #############################################################################################
@@ -38,7 +39,7 @@ CONFIG_FILE="$DOTFILES_DIR/.setup.conf"
 
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
-INSTALL_DOCKER=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_GEMINI_CLI=false
+INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_GEMINI_CLI=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
 
@@ -171,14 +172,20 @@ if ! command -v gh >/dev/null 2>&1; then
     sudo apt-get -qq update && sudo apt-get -qq install -y gh  # apt update needed: new repo just added
 fi
 
-# --- Firefox ESR (Mozilla apt repo) ---
-if [[ "$INSTALL_FF_ESR" == true ]] && ! dpkg -s firefox-esr >/dev/null 2>&1; then
-    echo "Setting up Mozilla apt repo for Firefox ESR..."
-    sudo install -d -m 0755 /etc/apt/keyrings
-    [ -f /etc/apt/keyrings/packages.mozilla.org.asc ] || curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null
-    [ -f /etc/apt/sources.list.d/mozilla.list ] || echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null
-    [ -f /etc/apt/preferences.d/mozilla ] || printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' | sudo tee /etc/apt/preferences.d/mozilla
-    sudo apt-get -qq update && sudo apt-get -qq install -y firefox-esr
+# --- Firefox (Mozilla apt repo) ---
+# For now either toggle installs both the latest and ESR builds from the Mozilla repo.
+if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
+    ff_pkgs=()
+    dpkg -s firefox     >/dev/null 2>&1 || ff_pkgs+=(firefox)
+    dpkg -s firefox-esr >/dev/null 2>&1 || ff_pkgs+=(firefox-esr)
+    if [ ${#ff_pkgs[@]} -gt 0 ]; then
+        echo "Setting up Mozilla apt repo for Firefox: ${ff_pkgs[*]}..."
+        sudo install -d -m 0755 /etc/apt/keyrings
+        [ -f /etc/apt/keyrings/packages.mozilla.org.asc ] || curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null
+        [ -f /etc/apt/sources.list.d/mozilla.list ] || echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null
+        [ -f /etc/apt/preferences.d/mozilla ] || printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' | sudo tee /etc/apt/preferences.d/mozilla
+        sudo apt-get -qq update && sudo apt-get -qq install -y "${ff_pkgs[@]}"
+    fi
 fi
 
 # Add current user to docker group (requires logout/login to take effect)
@@ -203,7 +210,7 @@ if [[ "$INSTALL_NODE" == true ]]; then
     export PATH="$HOME/.local/share/fnm:$PATH"
     eval "$(fnm env --shell bash)"
     fnm install --lts
-    npm install -g vite
+    npm install -g vite pnpm
     mkdir -p ~/.local/share/bash-completion/completions
     fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
 fi

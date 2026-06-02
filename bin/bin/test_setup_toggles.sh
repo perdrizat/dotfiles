@@ -1,5 +1,8 @@
 #!/bin/bash
-# Tests for INSTALL_CLAUDE and INSTALL_GEMINI_CLI toggles in setup.sh / validate_setup.sh
+# Tests for the INSTALL_* toggles in setup.sh / validate_setup.sh.
+#
+# Toggles are driven through a temp config via DOTFILES_CONFIG so the tests are
+# hermetic — independent of the machine's own ~/dotfiles/.setup.conf.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOTFILES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -39,45 +42,57 @@ assert_not_contains() {
     fi
 }
 
-# --- Test 1: setup.sh defines INSTALL_CLAUDE toggle ---
-echo "Test 1: INSTALL_CLAUDE toggle exists in setup.sh"
+# Run validate_setup.sh against a temp config containing the given toggle lines.
+validate_with() {
+    local conf; conf=$(mktemp)
+    printf '%s\n' "$@" > "$conf"
+    DOTFILES_CONFIG="$conf" bash "$SCRIPT_DIR/validate_setup.sh" 2>&1
+    rm -f "$conf"
+}
+
+# --- Test 1: setup.sh binds toggles, defaulting to false on an empty config ---
+echo "Test 1: setup.sh binds toggles (default false on empty config)"
+empty_conf=$(mktemp)
+export DOTFILES_CONFIG="$empty_conf"
 source "$DOTFILES_DIR/setup.sh"
-assert_eq "INSTALL_CLAUDE is defined" "true" "$INSTALL_CLAUDE"
+unset DOTFILES_CONFIG
+rm -f "$empty_conf"
+assert_eq "INSTALL_CLAUDE bound" "false" "$INSTALL_CLAUDE"
+assert_eq "INSTALL_GEMINI_CLI bound" "false" "$INSTALL_GEMINI_CLI"
+assert_eq "INSTALL_NODE bound" "false" "$INSTALL_NODE"
 
-# --- Test 2: setup.sh defines INSTALL_GEMINI_CLI toggle ---
-echo "Test 2: INSTALL_GEMINI_CLI toggle exists in setup.sh"
-assert_eq "INSTALL_GEMINI_CLI is defined" "false" "$INSTALL_GEMINI_CLI"
+# --- Test 2: Claude Code CLI row gated on INSTALL_CLAUDE ---
+# (Match "Claude Code CLI", not "Claude Code" — the always-on "Claude Code
+#  Configuration" settings section contains the latter regardless of the toggle.)
+echo "Test 2: Claude Code CLI row gated on INSTALL_CLAUDE"
+assert_contains "Claude Code CLI row present" "$(validate_with INSTALL_CLAUDE=true)" "Claude Code CLI"
+assert_not_contains "Claude Code CLI row absent" "$(validate_with INSTALL_CLAUDE=false)" "Claude Code CLI"
 
-# --- Test 3: validate_setup.sh shows Claude Code section when INSTALL_CLAUDE=true ---
-echo "Test 3: validate output includes Claude Code when toggle is true"
-output=$(INSTALL_CLAUDE=true bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
-assert_contains "Claude Code header present" "$output" "Claude Code"
+# --- Test 3: Gemini CLI section gated on INSTALL_GEMINI_CLI ---
+echo "Test 3: Gemini CLI section gated on INSTALL_GEMINI_CLI"
+assert_contains "Gemini CLI header present" "$(validate_with INSTALL_GEMINI_CLI=true)" "Gemini CLI"
+assert_not_contains "Gemini CLI header absent" "$(validate_with INSTALL_GEMINI_CLI=false)" "Gemini CLI"
 
-# --- Test 4: validate_setup.sh hides Claude Code section when INSTALL_CLAUDE=false ---
-echo "Test 4: validate output excludes Claude Code when toggle is false"
-# Override toggle by injecting it after source line
-output=$(INSTALL_CLAUDE=false bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
-assert_not_contains "Claude Code header absent" "$output" "Claude Code"
+# --- Test 4: docker group check gated on INSTALL_DOCKER ---
+echo "Test 4: docker group check gated on INSTALL_DOCKER"
+assert_contains "docker group check present" "$(validate_with INSTALL_DOCKER=true)" "docker group"
+assert_not_contains "docker group check absent" "$(validate_with INSTALL_DOCKER=false)" "docker group"
 
-# --- Test 5: validate_setup.sh shows Gemini CLI section when INSTALL_GEMINI_CLI=true ---
-echo "Test 5: validate output includes Gemini CLI when toggle is true"
-output=$(INSTALL_GEMINI_CLI=true bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
-assert_contains "Gemini CLI header present" "$output" "Gemini CLI"
+# --- Test 5: pnpm check gated on INSTALL_NODE ---
+echo "Test 5: pnpm check gated on INSTALL_NODE"
+assert_contains "pnpm check present" "$(validate_with INSTALL_NODE=true)" "pnpm"
+assert_not_contains "pnpm check absent" "$(validate_with INSTALL_NODE=false)" "pnpm"
 
-# --- Test 6: validate_setup.sh hides Gemini CLI section when INSTALL_GEMINI_CLI=false ---
-echo "Test 6: validate output excludes Gemini CLI when toggle is false"
-output=$(INSTALL_GEMINI_CLI=false bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
-assert_not_contains "Gemini CLI header absent" "$output" "Gemini CLI"
-
-# --- Test 7: validate_setup.sh checks docker group when INSTALL_DOCKER=true ---
-echo "Test 7: validate output includes docker group check when toggle is true"
-output=$(INSTALL_DOCKER=true bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
-assert_contains "docker group check present" "$output" "docker group"
-
-# --- Test 8: validate_setup.sh skips docker group when INSTALL_DOCKER=false ---
-echo "Test 8: validate output excludes docker group when toggle is false"
-output=$(INSTALL_DOCKER=false bash "$SCRIPT_DIR/validate_setup.sh" 2>&1)
-assert_not_contains "docker group absent" "$output" "docker group"
+# --- Test 6: Firefox checks gated on INSTALL_FF / INSTALL_FF_ESR ---
+# For now either toggle installs & checks BOTH the latest and ESR builds.
+echo "Test 6: Firefox checks gated on INSTALL_FF / INSTALL_FF_ESR"
+out_ff=$(validate_with INSTALL_FF=true)
+assert_contains "INSTALL_FF shows Firefox latest" "$out_ff" "Firefox (latest)"
+assert_contains "INSTALL_FF also shows Firefox ESR" "$out_ff" "Firefox ESR"
+out_esr=$(validate_with INSTALL_FF_ESR=true)
+assert_contains "INSTALL_FF_ESR shows Firefox latest" "$out_esr" "Firefox (latest)"
+assert_contains "INSTALL_FF_ESR also shows Firefox ESR" "$out_esr" "Firefox ESR"
+assert_not_contains "neither toggle shows Firefox" "$(validate_with INSTALL_FF=false)" "Firefox"
 
 # --- Summary ---
 echo ""
