@@ -40,6 +40,7 @@ CONFIG_FILE="${DOTFILES_CONFIG:-$DOTFILES_DIR/.setup.conf}"
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
 INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_GEMINI_CLI=false
+SSH_YUBIKEY=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
 
@@ -145,6 +146,7 @@ fi
 apt_install=("${APT_PACKAGES[@]}")
 [[ "$INSTALL_PYTHON" == true ]] && apt_install+=(python3 python3-pip python3-venv)
 [[ "$INSTALL_DOCKER" == true ]] && apt_install+=(docker-compose-v2)
+[[ "$SSH_YUBIKEY" == true ]] && apt_install+=(socat)
 # Add machine-specific packages from config
 if [ -n "$MORE_APT_PACKAGES" ]; then
     read -ra more_pkgs <<< "$MORE_APT_PACKAGES"
@@ -236,6 +238,13 @@ fi
 if [[ "$INSTALL_GEMINI_CLI" == true ]] && ! command -v gemini >/dev/null 2>&1; then
     echo "Installing Gemini CLI..."
     npm install -g @google/gemini-cli
+fi
+
+# --- WSL ssh-agent relay (YubiKey) ---
+# Idempotent; only prompts (UAC / YubiKey touch) for pieces that are missing.
+if [[ "$SSH_YUBIKEY" == true ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    echo "Configuring Windows ssh-agent (YubiKey) relay..."
+    bash "$DOTFILES_DIR/bin/bin/wsl_ssh_agent.sh" || echo "wsl_ssh_agent.sh reported issues — run it manually to finish."
 fi
 
 echo "Setup complete! Restart your shell or run"

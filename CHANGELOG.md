@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `SSH_YUBIKEY` toggle: relay the Windows ssh-agent (YubiKey `ed25519-sk`) into WSL via `socat`+`npiperelay`, so one resident key works across all WSL distros/hosts
+- `bin/bin/wsl_ssh_agent.sh`: idempotent, detection-gated provision/repair of the relay — ensures socat, Windows OpenSSH ≥ 8.4 (winget→Optional Feature), ssh-agent service (one UAC), pinned+checksummed npiperelay, sk key handle (`ssh-keygen -K`), and writes `~/.config/dotfiles/ssh_agent.env`
+- `bin/bin/test_wsl_ssh_agent.sh`: tests for the version-parsing/comparison helpers and the WSL guard
+- `bash/.bash_extra`: WSL-guarded snippet that sources the generated env file and starts the relay (silent no-op when unprovisioned)
+- `bin/bin/validate_setup.sh`: diagnostic-only "SSH Agent Relay (YubiKey)" section (socat, npiperelay, live relay) pointing at `wsl_ssh_agent.sh` to fix
 - `INSTALL_FF` toggle (`.setup.conf` + template) for Firefox latest from the Mozilla apt repo; for now either `INSTALL_FF` or `INSTALL_FF_ESR` installs & validates both the latest and ESR builds
 - `setup.sh`: installs `pnpm` globally via npm alongside `vite` in the Node toggle block
 - `bin/bin/validate_setup.sh`: validates `pnpm` (and prints an install fix command) when `INSTALL_NODE=true`

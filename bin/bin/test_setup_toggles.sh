@@ -94,6 +94,11 @@ assert_contains "INSTALL_FF_ESR shows Firefox latest" "$out_esr" "Firefox (lates
 assert_contains "INSTALL_FF_ESR also shows Firefox ESR" "$out_esr" "Firefox ESR"
 assert_not_contains "neither toggle shows Firefox" "$(validate_with INSTALL_FF=false)" "Firefox"
 
+# --- Test 7: SSH agent relay (YubiKey) section gated on SSH_YUBIKEY ---
+echo "Test 7: SSH agent relay section gated on SSH_YUBIKEY"
+assert_contains "relay section present" "$(validate_with SSH_YUBIKEY=true)" "SSH Agent Relay"
+assert_not_contains "relay section absent" "$(validate_with SSH_YUBIKEY=false)" "SSH Agent Relay"
+
 # --- Summary ---
 echo ""
 echo "Results: $PASS passed, $FAIL failed"

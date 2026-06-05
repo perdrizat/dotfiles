@@ -359,6 +359,39 @@ check_perms ".ssh/ permissions" "$HOME/.ssh" "700" "ssh-dir-perms"
 check_perms "Private key permissions" "$HOME/.ssh/id_ed25519" "600" "ssh-key-perms"
 check_perms ".ssh/config permissions" "$HOME/.ssh/config" "644" "ssh-config-perms"
 
+# --- SSH Agent Relay (YubiKey) — WSL relays the Windows ssh-agent over a socket ---
+# Diagnostic only: any failure points at wsl_ssh_agent.sh, the idempotent fix.
+if [[ "$SSH_YUBIKEY" == true ]]; then
+    print_header "SSH Agent Relay (YubiKey)"
+    relay_env="$HOME/.config/dotfiles/ssh_agent.env"
+
+    # socat (the WSL-side relay tool)
+    if command -v socat >/dev/null 2>&1; then
+        print_row "socat" "${GREEN}✓ Installed${NC}" ""
+    else
+        print_row "socat" "${RED}✗ Missing${NC}" ""
+        missing_items+=("ssh-yubikey-relay")
+    fi
+
+    # npiperelay.exe (recorded in the generated env file)
+    npiperelay_path=""
+    [ -f "$relay_env" ] && npiperelay_path=$(. "$relay_env" 2>/dev/null; echo "${NPIPERELAY:-}")
+    if [ -n "$npiperelay_path" ] && [ -e "$npiperelay_path" ]; then
+        print_row "npiperelay.exe" "${GREEN}✓ Present${NC}" "${npiperelay_path}"
+    else
+        print_row "npiperelay.exe" "${RED}✗ Missing${NC}" "not provisioned (no env file or binary)"
+        missing_items+=("ssh-yubikey-relay")
+    fi
+
+    # Relay live: SSH_AUTH_SOCK is a live socket and the agent serves the sk key
+    if [ -S "${SSH_AUTH_SOCK:-}" ] && ssh-add -l 2>/dev/null | grep -q 'ED25519-SK\|ECDSA-SK'; then
+        print_row "Agent relay" "${GREEN}✓ Live${NC}" "sk key reachable via SSH_AUTH_SOCK"
+    else
+        print_row "Agent relay" "${RED}✗ Down${NC}" "no sk key via SSH_AUTH_SOCK"
+        missing_items+=("ssh-yubikey-relay")
+    fi
+fi
+
 # --- WSL config (host-specific) ---
 if [ "$(hostname)" = "bequiet" ]; then
     print_header "WSL Configuration"
@@ -689,6 +722,16 @@ for item in "${unique_items[@]}"; do
         wsl-ipv6)
             printf "\n  ${CYAN}# Add IPv6 boot command to /etc/wsl.conf${NC}\n"
             echo "  cd ~/dotfiles && bash setup.sh"
+            break ;;
+    esac
+done
+
+# 5c. SSH agent relay (YubiKey) — one idempotent script provisions/repairs it
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        ssh-yubikey-relay)
+            printf "\n  ${CYAN}# Provision/repair the Windows ssh-agent (YubiKey) relay${NC}\n"
+            echo "  wsl_ssh_agent.sh"
             break ;;
     esac
 done

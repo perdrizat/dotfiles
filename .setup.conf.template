@@ -16,5 +16,8 @@ INSTALL_FF_ESR=false     # Mozilla apt repo → firefox-esr
 INSTALL_CLAUDE=false     # Claude Code CLI
 INSTALL_GEMINI_CLI=false # Gemini CLI (npm: @google/gemini-cli)
 
+# SSH toggles
+SSH_YUBIKEY=false        # WSL: relay Windows ssh-agent (YubiKey ed25519-sk) into WSL via socat+npiperelay
+
 # Additional apt packages (space-separated)
 MORE_APT_PACKAGES=""
