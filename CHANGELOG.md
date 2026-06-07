@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `CONTRIBUTING.md` imrove unattended automated testing
 - `setup.sh`: create the three project agent symlinks at the dotfiles repo root (`CLAUDE.md`/`AGENTS.md`/`GEMINI.md` → `CONTRIBUTING.md`) when missing, so this repo satisfies its own `validate_project.sh` contract out of the box; existing files/symlinks are left untouched
 - `bin/bin/validate_setup.sh`: new "Project Agent Files (~/dotfiles)" section verifies the repo's own `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` → `CONTRIBUTING.md` symlinks natively via `check_symlink` (consistent with the "Global LLM Instructions" section), feeding a `project-agent-symlinks` fix entry that points at `bash setup.sh` to recreate any missing links. Placed last so it doesn't disrupt the main check flow
 

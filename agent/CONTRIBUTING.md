@@ -10,6 +10,17 @@ Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific
 
 - **Always use red/green TDD**: Write failing tests first, then implement the code to make them pass. Never write production code without a corresponding test written beforehand.
 
+## Running commands (efficiency & safety)
+
+Goal: do not generate needless permission prompts. The permission system can only auto-approve a **single, clean** command — the moment a command contains a shell operator (`>`, `>>`, `2>&1`, `|`, `&&`, `||`, `;`, `$(…)`, backticks) it falls back to asking, *even when the underlying command is safe*. So:
+
+- **Run dev commands bare.** Build, lint, typecheck, and test commands (e.g. `pnpm build`, `pnpm lint`, `pnpm typecheck`, `pnpm test:fast`, `pnpm test:e2e`, `pnpm test:uat`, and equivalents in other ecosystems) should always be runnable without approval — run them exactly as the one command, with no redirection or chaining.
+- **Never redirect or chain to capture output.** Don't write `cmd > file 2>&1`, `cmd; echo $?`, or `cmd && other`. To capture long output, run the command with the Bash tool's **background mode** — the harness writes the *complete* output to a file and reports the exit code on completion — then read that file with the **Read tool**. For short commands, the inline result already shows pass/fail.
+- **Inspect with the Read / Grep / Glob tools, never shell text utilities.** Do not use `cat`, `sed`, `awk`, `head`, `tail`, `wc`, or `grep` through Bash to read or scan files — each is a separate command that prompts, and `sed`/`awk` are flagged as unsafe. Test and log outputs are small: Read them in full. Use the Grep/Glob tools to search code.
+- **Leave genuinely risky commands manual.** Mutating, installing, or networked commands (`git` writes, `rm`, `pnpm install`, launching a dev server) should still prompt — that is the security boundary worth keeping.
+
+This pairs with an allow-list of the safe dev commands in settings (`~/.claude/settings.json` for cross-project effect). The verbal rules above are what keep the agent *using* those commands in an auto-approvable, bare form rather than re-wrapping them.
+
 ## Workflow
 
 - **Always update CHANGELOG.md**: Before returning to the user after completing work, update (or create) `CHANGELOG.md` in the project root following [Keep a Changelog](https://keepachangelog.com/) format. Add entries under the `[Unreleased]` section using the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security. **Keep entries to one line each** — concise like git commit messages, not paragraphs.
