@@ -108,6 +108,14 @@ ln -sf "$GLOBAL_INSTRUCTIONS" ~/.codex/AGENTS.md
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/AGENTS.md
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/GEMINI.md
 
+# Project-level agent symlinks at the dotfiles repo root (per validate_project.sh contract).
+# Created only when absent so we never replace a user's customization.
+for _agent in CLAUDE.md AGENTS.md GEMINI.md; do
+    if [ ! -e "$DOTFILES_DIR/$_agent" ] && [ ! -L "$DOTFILES_DIR/$_agent" ]; then
+        ln -s CONTRIBUTING.md "$DOTFILES_DIR/$_agent"
+    fi
+done
+
 # sort out SSH
 # Decrypt SSH key if it doesn't already exist
 if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then

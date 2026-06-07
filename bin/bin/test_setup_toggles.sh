@@ -42,6 +42,22 @@ assert_not_contains() {
     fi
 }
 
+# Assert that `first` appears before `second` in the output (by line number of the
+# first match of each). Useful for verifying section ordering.
+assert_order() {
+    local label="$1" output="$2" first="$3" second="$4"
+    local fline sline
+    fline=$(printf '%s\n' "$output" | grep -n -F "$first" | head -1 | cut -d: -f1)
+    sline=$(printf '%s\n' "$output" | grep -n -F "$second" | head -1 | cut -d: -f1)
+    if [ -n "$fline" ] && [ -n "$sline" ] && [ "$fline" -lt "$sline" ]; then
+        echo "  PASS: $label"
+        ((PASS++))
+    else
+        echo "  FAIL: $label — expected '$first' (line ${fline:-none}) before '$second' (line ${sline:-none})"
+        ((FAIL++))
+    fi
+}
+
 # Run validate_setup.sh against a temp config containing the given toggle lines.
 validate_with() {
     local conf; conf=$(mktemp)
@@ -98,6 +114,20 @@ assert_not_contains "neither toggle shows Firefox" "$(validate_with INSTALL_FF=f
 echo "Test 7: SSH agent relay section gated on SSH_YUBIKEY"
 assert_contains "relay section present" "$(validate_with SSH_YUBIKEY=true)" "SSH Agent Relay"
 assert_not_contains "relay section absent" "$(validate_with SSH_YUBIKEY=false)" "SSH Agent Relay"
+
+# --- Test 8: validate_setup.sh checks ~/dotfiles project agent files natively ---
+# The dotfiles repo's own agent-file contract (CLAUDE/AGENTS/GEMINI → CONTRIBUTING.md)
+# is verified inline with the native check_symlink helper — NOT by shelling out to
+# validate_project.sh (whose differently-styled output broke the flow). The section
+# sits last so it doesn't disrupt the main checks.
+echo "Test 8: validate_setup.sh checks ~/dotfiles project agent files natively (last section)"
+out=$(validate_with)
+assert_contains "Project Agent Files section header" "$out" "Project Agent Files"
+assert_not_contains "no validate_project.sh shell-out" "$out" "Agent file check"
+# Move-to-last: section must appear after the main check sections (APT Packages
+# is reliably emitted on every run since APT_PACKAGES is non-empty).
+assert_order "Project Agent Files after APT Packages" "$out" "APT Packages" "Project Agent Files"
+assert_order "Project Agent Files after Git Configuration" "$out" "Git Configuration" "Project Agent Files"
 
 # --- Summary ---
 echo ""

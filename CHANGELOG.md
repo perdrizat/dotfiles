@@ -6,24 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-07]
+
+### Added
+
+- `setup.sh`: create the three project agent symlinks at the dotfiles repo root (`CLAUDE.md`/`AGENTS.md`/`GEMINI.md` → `CONTRIBUTING.md`) when missing, so this repo satisfies its own `validate_project.sh` contract out of the box; existing files/symlinks are left untouched
+- `bin/bin/validate_setup.sh`: new "Project Agent Files (~/dotfiles)" section verifies the repo's own `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` → `CONTRIBUTING.md` symlinks natively via `check_symlink` (consistent with the "Global LLM Instructions" section), feeding a `project-agent-symlinks` fix entry that points at `bash setup.sh` to recreate any missing links. Placed last so it doesn't disrupt the main check flow
+
+### Changed
+
+- `bin/bin/validate_project.sh`: collapse the fix block into a single-line subshell — `( cd "<run cwd>" && cmd1 && cmd2 && … )` — using `pwd` so the line is pasteable from any shell
+
 ## [2026-06-02]
 
 ### Added
 
 - `SSH_YUBIKEY` toggle: relay the Windows ssh-agent (YubiKey `ed25519-sk`) into WSL via `socat`+`npiperelay`, so one resident key works across all WSL distros/hosts
 - `bin/bin/wsl_ssh_agent.sh`: idempotent, detection-gated provision/repair of the relay — ensures socat, Windows OpenSSH ≥ 8.4 (winget→Optional Feature), ssh-agent service (one UAC), pinned+checksummed npiperelay, sk key handle (`ssh-keygen -K`), and writes `~/.config/dotfiles/ssh_agent.env`
-- `bin/bin/test_wsl_ssh_agent.sh`: tests for the version-parsing/comparison helpers and the WSL guard
 - `bash/.bash_extra`: WSL-guarded snippet that sources the generated env file and starts the relay (silent no-op when unprovisioned)
 - `bin/bin/validate_setup.sh`: diagnostic-only "SSH Agent Relay (YubiKey)" section (socat, npiperelay, live relay) pointing at `wsl_ssh_agent.sh` to fix
 - `INSTALL_FF` toggle (`.setup.conf` + template) for Firefox latest from the Mozilla apt repo; for now either `INSTALL_FF` or `INSTALL_FF_ESR` installs & validates both the latest and ESR builds
 - `setup.sh`: installs `pnpm` globally via npm alongside `vite` in the Node toggle block
 - `bin/bin/validate_setup.sh`: validates `pnpm` (and prints an install fix command) when `INSTALL_NODE=true`
-- `bin/bin/test_setup_toggles.sh`: tests that `pnpm` is gated on the Node toggle
 
 ### Fixed
 
 - `setup.sh`: `CONFIG_FILE` is now overridable via `DOTFILES_CONFIG` so tests can drive toggles from a temp config (the toggle-sourcing refactor in 2c6360a had made env-var overrides ineffective — `.setup.conf` was sourced unconditionally over them)
-- `bin/bin/test_setup_toggles.sh`: rewritten to drive toggles through a temp `DOTFILES_CONFIG`, making the toggle tests hermetic (independent of the machine's `.setup.conf`); the negative-toggle cases had silently regressed; also match the `Claude Code CLI` row instead of `Claude Code` (which collides with the always-on `Claude Code Configuration` section)
 
 ## [2026-05-26]
 
@@ -130,7 +138,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `bin/bin/expand_wsl_disk.sh` — Expand WSL2 disk space from within Ubuntu; finds VHDX via registry, uses diskpart (with Windows admin elevation), resizes filesystem with resize2fs
-- `bin/bin/test_expand_wsl_disk.sh` — Tests for expand_wsl_disk.sh
 
 ## [2026-04-07]
 
@@ -161,7 +168,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `INSTALL_CLAUDE` and `INSTALL_GEMINI_CLI` toggles in `setup.sh` — Claude Code and Gemini CLI are now configurable like Rust, Node, etc.
 - `validate_setup.sh` checks and fix commands for Claude Code and Gemini CLI, conditional on toggles
-- `test_setup_toggles.sh` — tests for the new LLM agent toggles
 - All toggles are now overridable via environment variables (`${VAR:-default}` pattern)
 
 ### Fixed
@@ -214,7 +220,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `bin/bin/validate_project.sh` — checks agent file symlinks and .gitignore in any project
 - `bin/bin/pre_commit_check.sh` — safety scan, doc freshness, changed files in one script
-- `bin/bin/test_validate_project.sh`, `bin/bin/test_pre_commit_check.sh` — tests for above
 
 ### Changed
 
@@ -227,7 +232,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `bin/bin/check_changelog.sh` — Stop hook that warns when files are modified but CHANGELOG.md is not
-- `bin/bin/test_check_changelog.sh` — 5 test scenarios for the Stop hook
 - `agent/CONTRIBUTING.md` — single source of truth for global LLM instructions (TDD, changelog compression, pre-commit checklist)
 - `gemini/` directory — Antigravity skills/workflows (moved from `agent/`)
 - `AGENTS.md` and `GEMINI.md` symlinks → `CONTRIBUTING.md` (for Codex and Antigravity)

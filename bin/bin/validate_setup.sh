@@ -594,6 +594,17 @@ if [[ "$INSTALL_GEMINI_CLI" == true ]]; then
     fi
 fi
 
+# --- Project Agent Files (~/dotfiles CLAUDE/AGENTS/GEMINI symlinks) ---
+# The dotfiles repo follows its own validate_project.sh contract: each agent file is a
+# symlink to the repo-root CONTRIBUTING.md. Checked natively here (rather than shelling
+# out to validate_project.sh, whose differently-styled output broke the flow) — the fix
+# is a single `bash setup.sh`, which recreates any missing links.
+print_header "Project Agent Files (~/dotfiles)"
+PROJECT_CONTRIBUTING="$DOTFILES_DIR/CONTRIBUTING.md"
+for agent_file in CLAUDE.md AGENTS.md GEMINI.md; do
+    check_symlink "$agent_file" "$DOTFILES_DIR/$agent_file" "$PROJECT_CONTRIBUTING" "project-agent-symlinks"
+done
+
 # ==========================================
 #  SUMMARY + FIX COMMANDS
 # ==========================================
@@ -742,6 +753,16 @@ for item in "${unique_items[@]}"; do
         llm-global)
             printf "\n  ${CYAN}# Link global LLM instructions${NC}\n"
             echo "  mkdir -p ~/.claude ~/.codex ~/.gemini && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.claude/CLAUDE.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.codex/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/GEMINI.md"
+            break ;;
+    esac
+done
+
+# 6b. Project agent symlinks in ~/dotfiles (CLAUDE.md/AGENTS.md/GEMINI.md → CONTRIBUTING.md)
+for item in "${unique_items[@]}"; do
+    case "$item" in
+        project-agent-symlinks)
+            printf "\n  ${CYAN}# Recreate project agent symlinks in ~/dotfiles (CLAUDE/AGENTS/GEMINI.md → CONTRIBUTING.md)${NC}\n"
+            echo "  cd ~/dotfiles && bash setup.sh"
             break ;;
     esac
 done
