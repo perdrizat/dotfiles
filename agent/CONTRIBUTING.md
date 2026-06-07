@@ -2,6 +2,10 @@
 
 These instructions apply to all LLM coding agents (Claude Code, OpenAI Codex, Google Antigravity) across all projects.
 
+## Precedence
+
+Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific files `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) explicitly overrides a rule below, follow the project file for that repo. These global rules are the default wherever a project is silent.
+
 ## Patterns & Conventions
 
 - **Always use red/green TDD**: Write failing tests first, then implement the code to make them pass. Never write production code without a corresponding test written beforehand.
@@ -9,6 +13,7 @@ These instructions apply to all LLM coding agents (Claude Code, OpenAI Codex, Go
 ## Workflow
 
 - **Always update CHANGELOG.md**: Before returning to the user after completing work, update (or create) `CHANGELOG.md` in the project root following [Keep a Changelog](https://keepachangelog.com/) format. Add entries under the `[Unreleased]` section using the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security. **Keep entries to one line each** — concise like git commit messages, not paragraphs.
+- **One section per date**: each `## [YYYY-MM-DD]` heading must appear at most once. When promoting `[Unreleased]`, merge into that date's existing section if present, folding entries into the right type group (Added/Changed/…) — never append a second header for a date that already exists.
 
 ## Compressing CHANGELOG.md
 
@@ -26,6 +31,6 @@ When asked to prepare a commit, run pre-commit checks, or help get code ready to
 
 1. **Run `pre_commit_check.sh`** — This utility lives in the user's `$PATH` (not inside the project). Run it with `pre_commit_check.sh` directly — do **not** check for it with `ls` or look for it inside the project directory. It performs the safety scan (secrets, debug remnants), documentation freshness check (CHANGELOG.md, CONTRIBUTING.md, README.md), and lists all changed files. Review its output and act on any warnings before proceeding.
 2. **Build, lint, test** — If the project has a build step, linter, or test suite, run them. Adapt to whatever tooling the project uses (`npm`, `cargo`, `pytest`, `go`, etc.). Report failures; do not proceed until they pass.
-3. **Promote changelog entries** — Move completed entries from `[Unreleased]` to a new `[YYYY-MM-DD]` section (today's date). Leave any in-progress or unfinished items under `[Unreleased]`.
+3. **Promote changelog entries** — Move completed entries from `[Unreleased]` into today's `[YYYY-MM-DD]` section — create it if absent, otherwise merge into the existing one by type (never add a second header for the same date). Leave any in-progress or unfinished items under `[Unreleased]`.
 4. **Commit message** — Based on the diff, suggest a short (under 72 chars) conventional commit message. If changes span multiple concerns, suggest splitting and provide a message for each.
 5. **Copy-paste commands** — Print the exact git commands the user can paste into the terminal. Use `git add` for new/modified files, `git mv` for renames, `git rm` for deletions, `git restore --staged` for files that should be excluded. End with `git commit -a -m "suggested commit message" && git push`. Format as a single fenced code block.

@@ -2,6 +2,15 @@
 
 Personal dotfiles managed with GNU Stow. Deployed via `setup.sh`, validated via `validate_setup.sh`.
 
+## Conventions for this repo
+
+These intentionally override the [global agent instructions](agent/CONTRIBUTING.md) for this repo (see the **Precedence** rule there):
+
+- **No Red-Green TDD** — implement directly; do not write a failing test first.
+- **No new test scripts** — do not author `test_*.sh` (or equivalent) for changes here.
+
+All other global rules (e.g. updating `CHANGELOG.md`, the commit-prep workflow) still apply. The repo carries no `test_*.sh` scripts.
+
 ## Structure
 
 Each top-level directory is a stow package. Running `stow --adopt <package>` from `~/dotfiles` symlinks its contents into `$HOME`.
@@ -71,6 +80,5 @@ Reports green/yellow/red per item and prints fix commands in dependency order.
 - `bin/bin/validate_project.sh` — Checks agent file setup in any project (symlinks, .gitignore)
 - `bin/bin/pre_commit_check.sh` — Safety scan, doc freshness, changed files (used by prepare-to-commit workflow)
 - `bin/bin/check_changelog.sh` — Stop hook: warns when files changed but CHANGELOG.md wasn't updated
-- `bin/bin/test_check_changelog.sh`, `bin/bin/test_validate_project.sh`, `bin/bin/test_pre_commit_check.sh` — Tests
 - `bash/.bash_extra` — PATH, editor, prompt, WSL config
 - `bash/.bash_aliases` — Shell aliases

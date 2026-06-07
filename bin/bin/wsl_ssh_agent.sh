@@ -46,7 +46,7 @@ print_info()    { printf "${CYAN}INFO: %s${NC}\n" "$1"; }
 print_warn()    { printf "${YELLOW}WARN: %s${NC}\n" "$1" >&2; }
 
 # ============================================================================
-#  Pure helpers (unit-tested by test_wsl_ssh_agent.sh)
+#  Pure helpers
 # ============================================================================
 
 # Extract MAJOR.MINOR from an `ssh -V` string, or empty if unrecognised.

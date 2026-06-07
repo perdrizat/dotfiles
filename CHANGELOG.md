@@ -15,7 +15,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `CHANGELOG.md`: consolidated duplicate same-date sections (`2026-04-04` ×3, `2026-04-01` ×2) into one block each, merged by type
+- `agent/CONTRIBUTING.md`: codified one-section-per-date — promote `[Unreleased]` by merging into today's existing dated section (never append a second same-date header)
 - `bin/bin/validate_project.sh`: collapse the fix block into a single-line subshell — `( cd "<run cwd>" && cmd1 && cmd2 && … )` — using `pwd` so the line is pasteable from any shell
+- Agent instructions: `agent/CONTRIBUTING.md` gains a general "Precedence" clause (project instruction files may override global defaults); `CONTRIBUTING.md` uses it to opt this repo out of Red-Green TDD and new test scripts
+
+### Removed
+
+- All `bin/bin/test_*.sh` scripts (6) per the repo's new no-test-scripts policy; dropped their references in `CONTRIBUTING.md` and `wsl_ssh_agent.sh`
 
 ## [2026-06-02]
 
@@ -169,28 +176,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `INSTALL_CLAUDE` and `INSTALL_GEMINI_CLI` toggles in `setup.sh` — Claude Code and Gemini CLI are now configurable like Rust, Node, etc.
 - `validate_setup.sh` checks and fix commands for Claude Code and Gemini CLI, conditional on toggles
 - All toggles are now overridable via environment variables (`${VAR:-default}` pattern)
-
-### Fixed
-
-- `validate_setup.sh`: detect stow-folded directory symlinks at any depth (fixes gemini false positives)
-- `validate_setup.sh`: remove hardcoded gemini check — fully covered by stow symlink loop
-- `validate_setup.sh`: remove redundant git settings value check (covered by stow symlink)
-
-## [2026-04-04]
-
-### Added
-
 - Dev toolchain toggles in `setup.sh`: `INSTALL_RUST`, `INSTALL_NODE`, `INSTALL_ICP`, `INSTALL_PYTHON`, `INSTALL_DOCKER`
 - Rust via `rustup`, Node via `fnm`, ICP via `dfxvm` + `ic-admin`, Python via apt, Docker via apt
 - `validate_setup.sh` checks and fix commands for all dev toolchains
 - Claude Code installed via `curl`
-
-### Fixed
-
-- `validate_setup.sh` stow check: skip gitignored files (generated pub keys, known_hosts)
-- `setup.sh` prevents stow from folding `~/.ssh` into a symlink
-
-## [2026-04-04]
+- `gr` alias for `git restore`
 
 ### Changed
 
@@ -207,12 +197,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- `validate_setup.sh`: detect stow-folded directory symlinks at any depth (fixes gemini false positives)
+- `validate_setup.sh`: remove hardcoded gemini check — fully covered by stow symlink loop
+- `validate_setup.sh`: remove redundant git settings value check (covered by stow symlink)
+- `validate_setup.sh` stow check: skip gitignored files (generated pub keys, known_hosts)
+- `setup.sh` prevents stow from folding `~/.ssh` into a symlink
 - `claude_status.sh` extra credits display: convert cents to dollars, show limit as whole dollars
 - `validate_setup.sh` SSH checks: replace age decryption with sha256sum, fix pub key comparison
-
-### Added
-
-- `gr` alias for `git restore`
 
 ## [2026-04-01]
 
@@ -220,17 +211,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `bin/bin/validate_project.sh` — checks agent file symlinks and .gitignore in any project
 - `bin/bin/pre_commit_check.sh` — safety scan, doc freshness, changed files in one script
-
-### Changed
-
-- `claude_status.sh` line 2: `5h: 73% oooooooooo till 22:00 | 7d: ...` — percentages before bars, times after
-- Pre-commit workflow consolidated: safety/docs/files checks in `pre_commit_check.sh`, copy-paste git commands at the end
-- `agent/CONTRIBUTING.md`: changelog compression rules, streamlined pre-commit steps
-
-## [2026-04-01]
-
-### Added
-
 - `bin/bin/check_changelog.sh` — Stop hook that warns when files are modified but CHANGELOG.md is not
 - `agent/CONTRIBUTING.md` — single source of truth for global LLM instructions (TDD, changelog compression, pre-commit checklist)
 - `gemini/` directory — Antigravity skills/workflows (moved from `agent/`)
@@ -239,6 +219,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `claude_status.sh` line 2: `5h: 73% oooooooooo till 22:00 | 7d: ...` — percentages before bars, times after
+- Pre-commit workflow consolidated: safety/docs/files checks in `pre_commit_check.sh`, copy-paste git commands at the end
+- `agent/CONTRIBUTING.md`: changelog compression rules, streamlined pre-commit steps
 - `claude_status.sh` line 2: compact format — `5h at HH:MM` / `7d at MM/DD HH:MM` with 24h clock
 - Renamed project instructions `CLAUDE.md` → `CONTRIBUTING.md`; `CLAUDE.md`, `AGENTS.md`, `GEMINI.md` are gitignored symlinks
 - Renamed `WORKLOG.md` → `CHANGELOG.md` using [Keep a Changelog](https://keepachangelog.com/) format
