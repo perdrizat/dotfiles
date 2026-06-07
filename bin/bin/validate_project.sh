@@ -3,7 +3,7 @@
 #
 # Verifies:
 #   - CONTRIBUTING.md exists (source of truth)
-#   - CLAUDE.md, AGENTS.md, GEMINI.md are symlinks to CONTRIBUTING.md
+#   - CLAUDE.md, AGENTS.md are symlinks to CONTRIBUTING.md
 #   - All three symlinks are listed in .gitignore
 
 RED='\033[0;31m'
@@ -60,7 +60,7 @@ echo "Agent file check:"
 
 check_source
 
-for name in CLAUDE.md AGENTS.md GEMINI.md; do
+for name in CLAUDE.md AGENTS.md; do
     check_symlink "$name"
     check_gitignore "$name"
 done

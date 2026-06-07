@@ -11,19 +11,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `CONTRIBUTING.md` imrove unattended automated testing
-- `setup.sh`: create the three project agent symlinks at the dotfiles repo root (`CLAUDE.md`/`AGENTS.md`/`GEMINI.md` → `CONTRIBUTING.md`) when missing, so this repo satisfies its own `validate_project.sh` contract out of the box; existing files/symlinks are left untouched
-- `bin/bin/validate_setup.sh`: new "Project Agent Files (~/dotfiles)" section verifies the repo's own `CLAUDE.md`/`AGENTS.md`/`GEMINI.md` → `CONTRIBUTING.md` symlinks natively via `check_symlink` (consistent with the "Global LLM Instructions" section), feeding a `project-agent-symlinks` fix entry that points at `bash setup.sh` to recreate any missing links. Placed last so it doesn't disrupt the main check flow
+- `setup.sh`: create the project agent symlinks (`CLAUDE.md`/`AGENTS.md` → `CONTRIBUTING.md`) at the repo root when missing, so the repo satisfies its own `validate_project.sh` contract
+- `bin/bin/validate_setup.sh`: new "Project Agent Files (~/dotfiles)" section checks the repo's `CLAUDE.md`/`AGENTS.md` → `CONTRIBUTING.md` symlinks, with a `project-agent-symlinks` fix entry
 
 ### Changed
 
-- `CHANGELOG.md`: consolidated duplicate same-date sections (`2026-04-04` ×3, `2026-04-01` ×2) into one block each, merged by type
-- `agent/CONTRIBUTING.md`: codified one-section-per-date — promote `[Unreleased]` by merging into today's existing dated section (never append a second same-date header)
+- Rename `agent/CONTRIBUTING.md` → `agents/AGENTS.md` (the home-dir global agent-instruction source, not a project contributing guide; matches `agy`'s `AGENTS.md` convention); update `setup.sh` (incl. `STOW_SKIP`), `validate_setup.sh`, docs, and the home-dir symlinks
+- `agents/AGENTS.md`: CHANGELOG rules — one section per date, and record the net delta vs the previous commit (not the editing journey)
+- `agents/AGENTS.md`: add a "Precedence" clause (a project's own instruction files may override the global rules); `CONTRIBUTING.md` uses it to opt this repo out of Red-Green TDD and new test scripts
 - `bin/bin/validate_project.sh`: collapse the fix block into a single-line subshell — `( cd "<run cwd>" && cmd1 && cmd2 && … )` — using `pwd` so the line is pasteable from any shell
-- Agent instructions: `agent/CONTRIBUTING.md` gains a general "Precedence" clause (project instruction files may override global defaults); `CONTRIBUTING.md` uses it to opt this repo out of Red-Green TDD and new test scripts
+- `setup.sh` / `.setup.conf.template` / `bin/bin/validate_setup.sh`: replace the Gemini CLI with the Antigravity CLI — `INSTALL_GEMINI_CLI` → `INSTALL_ANTIGRAVITY`, install `agy` via `curl -fsSL https://antigravity.google/cli/install.sh | bash`; validation checks `agy` and flags a leftover `gemini` binary / `INSTALL_GEMINI_CLI` key to migrate (Gemini CLI stops serving 2026-06-18)
+- `setup.sh` / `bin/bin/validate_setup.sh`: Antigravity global instructions move to `~/.gemini/GEMINI.md` (symlink to `agents/AGENTS.md`)
+- `gemini` stow package: relocate `agy` skills to `~/.gemini/config/skills` (+ `skills.inactive`); `setup.sh` pre-creates `~/.gemini/config` so stow folds at the skills level
+- `setup.sh`: prune retired symlinks from earlier layouts on every run (`~/.gemini/AGENTS.md`, old top-level `~/.gemini/skills`/`skills.inactive`, repo-root `GEMINI.md`) — idempotent, symlinks only, so a pull + `setup.sh` fully self-heals an existing devbox
+- `bin/bin/validate_setup.sh`: global-instructions fix now points to `( cd ~/dotfiles && bash setup.sh )` (complete remediation incl. pruning); standardize the other `setup.sh` fix hints on the same cwd-safe subshell form
 
 ### Removed
 
 - All `bin/bin/test_*.sh` scripts (6) per the repo's new no-test-scripts policy; dropped their references in `CONTRIBUTING.md` and `wsl_ssh_agent.sh`
+- `GEMINI.md` as a per-project agent file (Antigravity reads workspace `AGENTS.md`): `validate_project.sh`, `init_project.sh`, `.gitignore`, and the agent-file docs now track only `CLAUDE.md`/`AGENTS.md`
 
 ## [2026-06-02]
 

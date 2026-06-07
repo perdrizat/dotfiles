@@ -52,7 +52,7 @@ EOF
 fi
 
 # Symlink agent-specific filenames → CONTRIBUTING.md
-for name in CLAUDE.md AGENTS.md GEMINI.md; do
+for name in CLAUDE.md AGENTS.md; do
     if [ -L "$name" ]; then
         echo "$name symlink already exists, skipping."
     elif [ -f "$name" ]; then
@@ -64,7 +64,7 @@ for name in CLAUDE.md AGENTS.md GEMINI.md; do
 done
 
 # Add symlinks to .gitignore so they don't get committed
-for name in CLAUDE.md AGENTS.md GEMINI.md; do
+for name in CLAUDE.md AGENTS.md; do
     if [ -f .gitignore ] && grep -qxF "$name" .gitignore; then
         continue
     fi

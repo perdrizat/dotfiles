@@ -9,7 +9,7 @@ DOTFILES_DIR="$HOME/dotfiles"
 # --- Shared variables (also used by validate_setup.sh) ---
 PREREQS=(git curl stow age unzip)
 APT_PACKAGES=(build-essential jq)
-STOW_SKIP=(.git agent claude)
+STOW_SKIP=(.git agents claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
 # Install the setup prerequisites if missing (apt update only in -update mode)
@@ -39,7 +39,7 @@ CONFIG_FILE="${DOTFILES_CONFIG:-$DOTFILES_DIR/.setup.conf}"
 
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
-INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_GEMINI_CLI=false
+INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_ANTIGRAVITY=false
 SSH_YUBIKEY=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
@@ -80,7 +80,7 @@ fi
 echo "Linking dotfiles with Stow..."
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
 mkdir -p ~/.ssh && chmod 700 ~/.ssh # prevent stow from folding .ssh into a symlink (generated files must not land in repo)
-mkdir -p ~/.gemini
+mkdir -p ~/.gemini/config  # real dir so stow folds skills at ~/.gemini/config/skills (agy writes other config here)
 for pkg_dir in "$DOTFILES_DIR"/*/; do
     pkg=$(basename "$pkg_dir")
     skip=false
@@ -101,19 +101,28 @@ if [ ! -f ~/.claude/settings.json ]; then
 fi
 
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
-GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
+GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agents/AGENTS.md"
 mkdir -p ~/.claude ~/.codex ~/.gemini
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.claude/CLAUDE.md
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.codex/AGENTS.md
-ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/AGENTS.md
+# Antigravity (agy) reads its global instructions from ~/.gemini/GEMINI.md only
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/GEMINI.md
 
 # Project-level agent symlinks at the dotfiles repo root (per validate_project.sh contract).
 # Created only when absent so we never replace a user's customization.
-for _agent in CLAUDE.md AGENTS.md GEMINI.md; do
+for _agent in CLAUDE.md AGENTS.md; do
     if [ ! -e "$DOTFILES_DIR/$_agent" ] && [ ! -L "$DOTFILES_DIR/$_agent" ]; then
         ln -s CONTRIBUTING.md "$DOTFILES_DIR/$_agent"
     fi
+done
+
+# Remove retired symlinks from earlier layouts (idempotent; only ever removes symlinks, never real files).
+# stow doesn't prune links whose source we've since moved/renamed, so clean them explicitly:
+#   ~/.gemini/AGENTS.md          — global agy config is now GEMINI.md
+#   ~/.gemini/skills[.inactive]  — skills moved under ~/.gemini/config/
+#   repo-root GEMINI.md          — project agent files are CLAUDE.md / AGENTS.md only
+for _retired in ~/.gemini/AGENTS.md ~/.gemini/skills ~/.gemini/skills.inactive "$DOTFILES_DIR/GEMINI.md"; do
+    [ -L "$_retired" ] && rm -f "$_retired"
 done
 
 # sort out SSH
@@ -243,9 +252,9 @@ if [[ "$INSTALL_CLAUDE" == true ]] && ! command -v claude >/dev/null 2>&1; then
     curl -fsSL https://claude.ai/install.sh | bash
 fi
 
-if [[ "$INSTALL_GEMINI_CLI" == true ]] && ! command -v gemini >/dev/null 2>&1; then
-    echo "Installing Gemini CLI..."
-    npm install -g @google/gemini-cli
+if [[ "$INSTALL_ANTIGRAVITY" == true ]] && ! command -v agy >/dev/null 2>&1; then
+    echo "Installing Antigravity CLI..."
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
 fi
 
 # --- WSL ssh-agent relay (YubiKey) ---

@@ -4,7 +4,7 @@ These instructions apply to all LLM coding agents (Claude Code, OpenAI Codex, Go
 
 ## Precedence
 
-Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific files `CLAUDE.md` / `AGENTS.md` / `GEMINI.md`) explicitly overrides a rule below, follow the project file for that repo. These global rules are the default wherever a project is silent.
+Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific files `CLAUDE.md` / `AGENTS.md`) explicitly overrides a rule below, follow the project file for that repo. These global rules are the default wherever a project is silent.
 
 ## Patterns & Conventions
 
@@ -25,6 +25,7 @@ This pairs with an allow-list of the safe dev commands in settings (`~/.claude/s
 
 - **Always update CHANGELOG.md**: Before returning to the user after completing work, update (or create) `CHANGELOG.md` in the project root following [Keep a Changelog](https://keepachangelog.com/) format. Add entries under the `[Unreleased]` section using the appropriate category: Added, Changed, Deprecated, Removed, Fixed, Security. **Keep entries to one line each** — concise like git commit messages, not paragraphs.
 - **One section per date**: each `## [YYYY-MM-DD]` heading must appear at most once. When promoting `[Unreleased]`, merge into that date's existing section if present, folding entries into the right type group (Added/Changed/…) — never append a second header for a date that already exists.
+- **Record the net delta, not the journey**: each commit's entries state the net change versus the previous commit — never the steps taken to get there. Don't narrate intermediate edits, reversals, or changelog-about-changelog housekeeping. If something added to `[Unreleased]` is later backed out or superseded before you commit, delete or rewrite that entry so only the net effect lands.
 
 ## Compressing CHANGELOG.md
 

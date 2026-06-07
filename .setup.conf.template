@@ -14,7 +14,7 @@ INSTALL_FF_ESR=false     # Mozilla apt repo → firefox-esr
 
 # LLM agent toggles
 INSTALL_CLAUDE=false     # Claude Code CLI
-INSTALL_GEMINI_CLI=false # Gemini CLI (npm: @google/gemini-cli)
+INSTALL_ANTIGRAVITY=false # Antigravity CLI (agy; replaces the retired Gemini CLI)
 
 # SSH toggles
 SSH_YUBIKEY=false        # WSL: relay Windows ssh-agent (YubiKey ed25519-sk) into WSL via socat+npiperelay

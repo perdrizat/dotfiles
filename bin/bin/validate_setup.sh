@@ -279,10 +279,9 @@ done
 # --- Global LLM Instructions ---
 print_header "Global LLM Instructions"
 
-GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agent/CONTRIBUTING.md"
+GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agents/AGENTS.md"
 check_symlink ".claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".codex/AGENTS.md" "$HOME/.codex/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
-check_symlink ".gemini/AGENTS.md" "$HOME/.gemini/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 
 # --- Claude Code Settings ---
@@ -570,7 +569,7 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
 fi
 
 # --- LLM Agents ---
-if [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_GEMINI_CLI" == true ]]; then
+if [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     print_header "LLM Agents"
 fi
 
@@ -584,14 +583,25 @@ if [[ "$INSTALL_CLAUDE" == true ]]; then
     fi
 fi
 
-if [[ "$INSTALL_GEMINI_CLI" == true ]]; then
-    if command -v gemini >/dev/null 2>&1; then
-        gemini_ver=$(gemini --version 2>/dev/null || echo "unknown")
-        print_row "Gemini CLI" "${GREEN}✓ Installed${NC}" "$gemini_ver"
+if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
+    if command -v agy >/dev/null 2>&1; then
+        agy_ver=$(agy --version 2>/dev/null || echo "unknown")
+        print_row "Antigravity CLI" "${GREEN}✓ Installed${NC}" "$agy_ver"
     else
-        print_row "Gemini CLI" "${RED}✗ Missing${NC}" ""
-        missing_items+=("gemini-cli")
+        print_row "Antigravity CLI" "${RED}✗ Missing${NC}" ""
+        missing_items+=("antigravity-cli")
     fi
+fi
+
+# Migration: Gemini CLI is retired (stops serving 2026-06-18), replaced by Antigravity CLI.
+# Flag a leftover `gemini` binary or an obsolete INSTALL_GEMINI_CLI key in .setup.conf.
+gemini_leftover=false
+command -v gemini >/dev/null 2>&1 && gemini_leftover=true
+grep -q '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE" 2>/dev/null && gemini_leftover=true
+if $gemini_leftover; then
+    [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]] || print_header "LLM Agents"
+    print_row "Gemini CLI" "${YELLOW}⚠ Retired${NC}" "migrate INSTALL_GEMINI_CLI → INSTALL_ANTIGRAVITY"
+    missing_items+=("gemini-migrate")
 fi
 
 # --- Project Agent Files (~/dotfiles CLAUDE/AGENTS/GEMINI symlinks) ---
@@ -601,7 +611,7 @@ fi
 # is a single `bash setup.sh`, which recreates any missing links.
 print_header "Project Agent Files (~/dotfiles)"
 PROJECT_CONTRIBUTING="$DOTFILES_DIR/CONTRIBUTING.md"
-for agent_file in CLAUDE.md AGENTS.md GEMINI.md; do
+for agent_file in CLAUDE.md AGENTS.md; do
     check_symlink "$agent_file" "$DOTFILES_DIR/$agent_file" "$PROJECT_CONTRIBUTING" "project-agent-symlinks"
 done
 
@@ -698,7 +708,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         bashrc-loader)
             printf "\n  ${CYAN}# Inject dotfiles loader into .bashrc${NC}\n"
-            echo "  cd ~/dotfiles && bash setup.sh"
+            echo "  ( cd ~/dotfiles && bash setup.sh )"
             break ;;
     esac
 done
@@ -732,7 +742,7 @@ for item in "${unique_items[@]}"; do
     case "$item" in
         wsl-ipv6)
             printf "\n  ${CYAN}# Add IPv6 boot command to /etc/wsl.conf${NC}\n"
-            echo "  cd ~/dotfiles && bash setup.sh"
+            echo "  ( cd ~/dotfiles && bash setup.sh )"
             break ;;
     esac
 done
@@ -751,18 +761,18 @@ done
 for item in "${unique_items[@]}"; do
     case "$item" in
         llm-global)
-            printf "\n  ${CYAN}# Link global LLM instructions${NC}\n"
-            echo "  mkdir -p ~/.claude ~/.codex ~/.gemini && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.claude/CLAUDE.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.codex/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/AGENTS.md && ln -sf ~/dotfiles/agent/CONTRIBUTING.md ~/.gemini/GEMINI.md"
+            printf "\n  ${CYAN}# Re-link global LLM instructions (also prunes retired symlinks)${NC}\n"
+            echo "  ( cd ~/dotfiles && bash setup.sh )"
             break ;;
     esac
 done
 
-# 6b. Project agent symlinks in ~/dotfiles (CLAUDE.md/AGENTS.md/GEMINI.md → CONTRIBUTING.md)
+# 6b. Project agent symlinks in ~/dotfiles (CLAUDE.md/AGENTS.md → CONTRIBUTING.md)
 for item in "${unique_items[@]}"; do
     case "$item" in
         project-agent-symlinks)
-            printf "\n  ${CYAN}# Recreate project agent symlinks in ~/dotfiles (CLAUDE/AGENTS/GEMINI.md → CONTRIBUTING.md)${NC}\n"
-            echo "  cd ~/dotfiles && bash setup.sh"
+            printf "\n  ${CYAN}# Recreate project agent symlinks in ~/dotfiles (CLAUDE/AGENTS.md → CONTRIBUTING.md)${NC}\n"
+            echo "  ( cd ~/dotfiles && bash setup.sh )"
             break ;;
     esac
 done
@@ -870,9 +880,13 @@ for item in "${unique_items[@]}"; do
             printf "\n  ${CYAN}# Install Claude Code${NC}\n"
             echo "  curl -fsSL https://claude.ai/install.sh | bash"
             ;;
-        gemini-cli)
-            printf "\n  ${CYAN}# Install Gemini CLI${NC}\n"
-            echo "  npm install -g @google/gemini-cli"
+        antigravity-cli)
+            printf "\n  ${CYAN}# Install Antigravity CLI${NC}\n"
+            echo "  curl -fsSL https://antigravity.google/cli/install.sh | bash"
+            ;;
+        gemini-migrate)
+            printf "\n  ${CYAN}# Migrate Gemini CLI → Antigravity CLI (Gemini CLI stops serving 2026-06-18)${NC}\n"
+            echo "  sed -i 's/^INSTALL_GEMINI_CLI=/INSTALL_ANTIGRAVITY=/' ~/dotfiles/.setup.conf && npm uninstall -g @google/gemini-cli 2>/dev/null; cd ~/dotfiles && bash setup.sh"
             ;;
     esac
 done
