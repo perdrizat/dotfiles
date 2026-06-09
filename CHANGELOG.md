@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-09]
+
+### Added
+
+- `bin/bin/install_nerd_fonts.sh`: script to download and install patched Nerd Fonts
+- `gemini/.gemini/antigravity-cli/settings.json`: template config to enforce status-line and permissions parity with Claude Code
+- `bin/bin/agy_status.sh`: native Antigravity status-line script matching Claude's HUD (dynamic model/quota tracking, token caching info, zero-latency background API refresh via `pgrep -x agy`)
+- `bash/.bash_aliases`: `ac` alias for `agy -c` (Antigravity continue), mirroring `cc` (`claude --continue`)
+
+### Changed
+
+- `CONTRIBUTING.md`: add convention specifying preference for squashed commits and extremely brief commit messages
+- `claude/.claude/settings.json` and `gemini/.gemini/antigravity-cli/settings.json`: auto-allow `pnpm` (`build`, `lint`, `typecheck`, `test` suites) without prompting
+- `setup.sh`: dynamically merge the Antigravity `settings.json` template into local state (`~/.gemini/antigravity-cli/settings.json`) without destroying manual config blocks
+- `bin/bin/validate_setup.sh`: add Antigravity checks for config file health and report/merge locally discovered untracked permissions (`agy-untracked-allows` and `claude-untracked-allows`)
+- `gemini/.gemini/antigravity-cli/settings.json`: port Claude's `check_changelog.sh` Stop hook over to Antigravity so it enforces changelog updates natively upon session exit
+- `agents/AGENTS.md`: revert explicit pre-flight check rule since Antigravity now enforces changelog updates via the native Stop hook
+- `setup.sh`: make the Node toolchain block idempotent on re-run — skip `fnm install --lts` when a Node version is already present (upgrades stay in `validate_setup.sh -u`), and `npm install -g` only the missing globals (`vite`/`pnpm`)
+
 ## [2026-06-07]
 
 ### Added

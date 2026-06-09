@@ -8,6 +8,7 @@ These intentionally override the [global agent instructions](agents/AGENTS.md) f
 
 - **No Red-Green TDD** — implement directly; do not write a failing test first.
 - **No new test scripts** — do not author `test_*.sh` (or equivalent) for changes here.
+- **Commit style** — squashed commits are preferred. Never propose long commit messages; keep them extremely brief and to the point.
 
 All other global rules (e.g. updating `CHANGELOG.md`, the commit-prep workflow) still apply. The repo carries no `test_*.sh` scripts.
 

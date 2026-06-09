@@ -310,9 +310,52 @@ elif [ -f "$HOME/.claude/settings.json" ]; then
         print_row ".claude/settings.json" "${YELLOW}⚠ Missing keys${NC}" "${missing_keys[*]}"
         missing_items+=("claude-settings")
     fi
+
+    # Check for untracked permissions
+    untracked_perms=($(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | .[]' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null))
+    if [ ${#untracked_perms[@]} -gt 0 ]; then
+        print_row ".claude/settings.json" "${YELLOW}⚠ Untracked allows${NC}" "${#untracked_perms[@]} local commands not in template"
+        missing_items+=("claude-untracked-allows")
+    fi
 else
     print_row ".claude/settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create from template"
     missing_items+=("claude-settings")
+fi
+
+# --- Antigravity Configuration ---
+print_header "Antigravity Configuration"
+
+AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
+if [ -L "$AGY_SETTINGS" ]; then
+    target=$(readlink "$AGY_SETTINGS")
+    print_row "agy settings.json" "${YELLOW}⚠ Is a symlink${NC}" "→ $target (should be a copy)"
+    missing_items+=("agy-settings-symlink")
+elif [ -f "$AGY_SETTINGS" ]; then
+    required_keys=("permissions" "statusLine" "hooks")
+    missing_keys=()
+
+    for key in "${required_keys[@]}"; do
+        if ! jq -e ".$key" "$AGY_SETTINGS" >/dev/null 2>&1; then
+            missing_keys+=("$key")
+        fi
+    done
+
+    if [ ${#missing_keys[@]} -eq 0 ]; then
+        print_row "agy settings.json" "${GREEN}✓ Complete${NC}" "all required keys present"
+    else
+        print_row "agy settings.json" "${YELLOW}⚠ Missing keys${NC}" "${missing_keys[*]}"
+        missing_items+=("agy-settings")
+    fi
+
+    # Check for untracked permissions
+    untracked_perms=($(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | .[]' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null))
+    if [ ${#untracked_perms[@]} -gt 0 ]; then
+        print_row "agy settings.json" "${YELLOW}⚠ Untracked allows${NC}" "${#untracked_perms[@]} local commands not in template"
+        missing_items+=("agy-untracked-allows")
+    fi
+else
+    print_row "agy settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create/merge from template"
+    missing_items+=("agy-settings")
 fi
 
 # --- SSH ---
@@ -869,6 +912,22 @@ for item in "${unique_items[@]}"; do
         claude-settings-symlink)
             printf "\n  ${CYAN}# Convert settings.json from symlink to copy${NC}\n"
             echo "  rm ~/.claude/settings.json && cp ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json"
+            break ;;
+        agy-settings)
+            printf "\n  ${CYAN}# Merge Antigravity settings template into local configuration${NC}\n"
+            echo "  ( cd ~/dotfiles && bash setup.sh )"
+            break ;;
+        agy-settings-symlink)
+            printf "\n  ${CYAN}# Convert agy settings.json from symlink to local file${NC}\n"
+            echo "  rm ~/.gemini/antigravity-cli/settings.json && ( cd ~/dotfiles && bash setup.sh )"
+            break ;;
+        claude-untracked-allows)
+            printf "\n  ${CYAN}# Add local Claude allows to dotfiles template${NC}\n"
+            echo "  jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' ~/.claude/settings.json ~/dotfiles/claude/.claude/settings.json > ~/dotfiles/claude/.claude/settings.json.tmp && mv ~/dotfiles/claude/.claude/settings.json.tmp ~/dotfiles/claude/.claude/settings.json"
+            break ;;
+        agy-untracked-allows)
+            printf "\n  ${CYAN}# Add local Antigravity allows to dotfiles template${NC}\n"
+            echo "  jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' ~/.gemini/antigravity-cli/settings.json ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json > ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json.tmp && mv ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json.tmp ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json"
             break ;;
     esac
 done

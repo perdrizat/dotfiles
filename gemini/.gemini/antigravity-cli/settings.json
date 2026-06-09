@@ -1,0 +1,56 @@
+{
+  "permissions": {
+    "allow": [
+      "command(break)",
+      "command(cat)",
+      "command(find)",
+      "command(git diff)",
+      "command(git status)",
+      "command(grep)",
+      "command(head)",
+      "command(jq)",
+      "command(ls)",
+      "command(lsof)",
+      "command(mkdir)",
+      "command(pgrep)",
+      "command(pnpm build)",
+      "command(pnpm lint)",
+      "command(pnpm test)",
+      "command(pnpm test:e2e)",
+      "command(pnpm test:fast)",
+      "command(pnpm test:uat)",
+      "command(pnpm typecheck)",
+      "command(pre_commit_check.sh)",
+      "command(ps)",
+      "command(read)",
+      "command(sleep)",
+      "command(stat)",
+      "command(strings)",
+      "command(tail)",
+      "command(touch)",
+      "command(tr)",
+      "command(validate_project.sh)",
+      "command(validate_setup.sh)",
+      "command(wc)",
+      "command(which)",
+      "command(~/bin/check_changelog.sh)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/bin/check_changelog.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/bin/agy_status.sh",
+    "enabled": true
+  }
+}

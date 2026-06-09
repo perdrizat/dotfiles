@@ -228,8 +228,19 @@ if [[ "$INSTALL_NODE" == true ]]; then
     # Make fnm available in this script (bashrc guard blocks source in non-interactive shells)
     export PATH="$HOME/.local/share/fnm:$PATH"
     eval "$(fnm env --shell bash)"
-    fnm install --lts
-    npm install -g vite pnpm
+    # Install LTS only when no Node is present yet; upgrades happen via `validate_setup.sh -u`
+    if ! fnm ls 2>/dev/null | grep -qE 'v[0-9]+\.'; then
+        echo "Installing Node LTS via fnm..."
+        fnm install --lts
+    fi
+    # Install only the global npm tools that are missing
+    node_globals_missing=()
+    command -v vite >/dev/null 2>&1 || node_globals_missing+=(vite)
+    command -v pnpm >/dev/null 2>&1 || node_globals_missing+=(pnpm)
+    if [ ${#node_globals_missing[@]} -gt 0 ]; then
+        echo "Installing global npm tools: ${node_globals_missing[*]}"
+        npm install -g "${node_globals_missing[@]}"
+    fi
     mkdir -p ~/.local/share/bash-completion/completions
     fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
 fi
@@ -252,9 +263,22 @@ if [[ "$INSTALL_CLAUDE" == true ]] && ! command -v claude >/dev/null 2>&1; then
     curl -fsSL https://claude.ai/install.sh | bash
 fi
 
-if [[ "$INSTALL_ANTIGRAVITY" == true ]] && ! command -v agy >/dev/null 2>&1; then
-    echo "Installing Antigravity CLI..."
-    curl -fsSL https://antigravity.google/cli/install.sh | bash
+if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
+    if ! command -v agy >/dev/null 2>&1; then
+        echo "Installing Antigravity CLI..."
+        curl -fsSL https://antigravity.google/cli/install.sh | bash
+    fi
+    # Deploy/merge agy settings
+    mkdir -p ~/.gemini/antigravity-cli
+    AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
+    AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
+    if [[ -f "$AGY_SETTINGS" ]]; then
+        jq -s '.[0] * {statusLine: .[1].statusLine, hooks: .[1].hooks, permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}' "$AGY_SETTINGS" "$AGY_TEMPLATE" > "${AGY_SETTINGS}.tmp" && mv "${AGY_SETTINGS}.tmp" "$AGY_SETTINGS"
+        echo "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
+    else
+        cp "$AGY_TEMPLATE" "$AGY_SETTINGS"
+        echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
+    fi
 fi
 
 # --- WSL ssh-agent relay (YubiKey) ---

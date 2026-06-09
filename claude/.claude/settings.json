@@ -3,7 +3,14 @@
     "allow": [
       "Bash(pre_commit_check.sh*)",
       "Bash(validate_setup.sh*)",
-      "Bash(validate_project.sh*)"
+      "Bash(validate_project.sh*)",
+      "Bash(pnpm build)",
+      "Bash(pnpm lint)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test)",
+      "Bash(pnpm test:fast *)",
+      "Bash(pnpm test:e2e *)",
+      "Bash(pnpm test:uat *)"
     ]
   },
   "hooks": {
