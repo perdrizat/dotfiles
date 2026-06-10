@@ -328,10 +328,32 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     fi
 fi
 
-# Uninstall the retired Gemini CLI (replaced by Antigravity; stops serving 2026-06-18)
-if command -v gemini >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
-    echo "Uninstalling retired Gemini CLI..."
-    npm uninstall -g @google/gemini-cli
+# Reverse-sync: fold allows granted locally back into the repo templates, so they can be
+# committed and shared across machines. Union only — never removes template entries.
+for _pair in "$HOME/.claude/settings.json:$DOTFILES_DIR/claude/.claude/settings.json" \
+             "$HOME/.gemini/antigravity-cli/settings.json:$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"; do
+    _local="${_pair%%:*}"; _template="${_pair#*:}"
+    [ -f "$_local" ] && [ -f "$_template" ] || continue
+    _untracked=$(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | length' "$_local" "$_template" 2>/dev/null)
+    if [ "${_untracked:-0}" -gt 0 ]; then
+        jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' "$_local" "$_template" > "${_template}.tmp" && mv "${_template}.tmp" "$_template"
+        echo "Synced $_untracked local allow(s) into $(basename "$(dirname "$_template")")/settings.json template — commit ~/dotfiles to share"
+    fi
+done
+
+# Uninstall the retired Gemini CLI (replaced by Antigravity; stops serving 2026-06-18).
+# npm lives under fnm — put it on PATH ourselves so this works even when INSTALL_NODE=false.
+if command -v gemini >/dev/null 2>&1; then
+    if ! command -v npm >/dev/null 2>&1 && [ -d "$HOME/.local/share/fnm" ]; then
+        export PATH="$HOME/.local/share/fnm:$PATH"
+        eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
+    fi
+    if command -v npm >/dev/null 2>&1; then
+        echo "Uninstalling retired Gemini CLI..."
+        npm uninstall -g @google/gemini-cli
+    else
+        echo "WARNING: gemini binary present but npm unavailable — remove it manually."
+    fi
 fi
 
 # --- WSL ssh-agent relay (YubiKey) ---

@@ -693,13 +693,12 @@ printf "${BOLD}Fix commands (in dependency order):${NC}\n"
 
 # Split findings: setup.sh is idempotent and remediates almost everything it provisions,
 # so all such items collapse into a single "re-run setup.sh" fix. Targeted commands remain
-# only for what setup.sh cannot do (repo clone/sync, YubiKey relay, Claude settings merge,
-# reverse-syncing untracked allows into the repo).
+# only for what setup.sh cannot do (repo clone/sync, YubiKey relay, Claude settings deploy).
 setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|wsl-ipv6|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|wsl-ipv6|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;
@@ -744,14 +743,6 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         agy-settings-symlink)
             printf "\n  ${CYAN}# Convert agy settings.json from symlink to local file${NC}\n"
             echo "  rm ~/.gemini/antigravity-cli/settings.json && ( cd ~/dotfiles && bash setup.sh )"
-            ;;
-        claude-untracked-allows)
-            printf "\n  ${CYAN}# Add local Claude allows to dotfiles template${NC}\n"
-            echo "  jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' ~/.claude/settings.json ~/dotfiles/claude/.claude/settings.json > ~/dotfiles/claude/.claude/settings.json.tmp && mv ~/dotfiles/claude/.claude/settings.json.tmp ~/dotfiles/claude/.claude/settings.json"
-            ;;
-        agy-untracked-allows)
-            printf "\n  ${CYAN}# Add local Antigravity allows to dotfiles template${NC}\n"
-            echo "  jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' ~/.gemini/antigravity-cli/settings.json ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json > ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json.tmp && mv ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json.tmp ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json"
             ;;
     esac
 done

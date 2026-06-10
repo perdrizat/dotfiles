@@ -64,7 +64,7 @@ cd ~/dotfiles && bash setup.sh
 validate_setup.sh
 ```
 
-Reports green/yellow/red per item and prints fix commands in dependency order. Most findings consolidate into a single fix — re-running the idempotent `setup.sh`; targeted commands are printed only for what it can't do (repo clone/sync, YubiKey relay, settings deploy/reverse-sync).
+Reports green/yellow/red per item and prints fix commands in dependency order. Most findings consolidate into a single fix — re-running the idempotent `setup.sh`; targeted commands are printed only for what it can't do (repo clone/sync, YubiKey relay, Claude settings deploy).
 
 ## Adding a new stow package
 
