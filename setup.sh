@@ -37,6 +37,32 @@ CONFIG_FILE="${DOTFILES_CONFIG:-$DOTFILES_DIR/.setup.conf}"
 #                                                                                           #
 #############################################################################################
 
+# Self-heal the machine config before sourcing it — executed runs only, so that
+# validate_setup.sh (which sources this file for shared variables) stays read-only.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    # Migrate the retired Gemini CLI toggle, preserving its value
+    if grep -q '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE"; then
+        _gem=$(grep '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE" | tail -1 | cut -d= -f2 | awk '{print $1}')
+        _gem=${_gem:-false}
+        sed -i '/^INSTALL_GEMINI_CLI=/d' "$CONFIG_FILE"
+        if grep -q '^INSTALL_ANTIGRAVITY=' "$CONFIG_FILE"; then
+            [ "$_gem" = "true" ] && sed -i 's/^INSTALL_ANTIGRAVITY=.*/INSTALL_ANTIGRAVITY=true/' "$CONFIG_FILE"
+        else
+            echo "INSTALL_ANTIGRAVITY=$_gem" >> "$CONFIG_FILE"
+        fi
+        echo "Migrated config: INSTALL_GEMINI_CLI → INSTALL_ANTIGRAVITY=$_gem"
+    fi
+    # Append template keys missing from the machine config (with their defaults)
+    while IFS= read -r _line; do
+        [[ "$_line" =~ ^[[:space:]]*# || -z "${_line// }" ]] && continue
+        _key="${_line%%=*}"
+        if ! grep -q "^${_key}=" "$CONFIG_FILE"; then
+            echo "$_line" >> "$CONFIG_FILE"
+            echo "Added missing config key: $_key"
+        fi
+    done < "$DOTFILES_DIR/.setup.conf.template"
+fi
+
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
 INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_ANTIGRAVITY=false
@@ -138,6 +164,9 @@ if [ -f ~/.ssh/id_ed25519 ]; then
     ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
 fi
 echo "Fixing remaining SSH permissions..."
+chmod 700 ~/.ssh
+[ -f ~/.ssh/id_ed25519 ] && chmod 600 ~/.ssh/id_ed25519
+[ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
 
 # Switch dotfiles remote from HTTPS to SSH now that keys are in place
 current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
@@ -279,6 +308,12 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
         cp "$AGY_TEMPLATE" "$AGY_SETTINGS"
         echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
     fi
+fi
+
+# Uninstall the retired Gemini CLI (replaced by Antigravity; stops serving 2026-06-18)
+if command -v gemini >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    echo "Uninstalling retired Gemini CLI..."
+    npm uninstall -g @google/gemini-cli
 fi
 
 # --- WSL ssh-agent relay (YubiKey) ---

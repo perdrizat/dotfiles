@@ -681,32 +681,23 @@ done
 
 printf "${BOLD}Fix commands (in dependency order):${NC}\n"
 
-# 1. Prerequisites
-prereqs=()
-for item in "${unique_items[@]}"; do
-    case "$item" in prereq-*) prereqs+=("${item#prereq-}") ;; esac
-done
-if [ ${#prereqs[@]} -gt 0 ]; then
-    printf "\n  ${CYAN}# Install prerequisites${NC}\n"
-    echo "  sudo apt install -y ${prereqs[*]}"
-fi
-
-# 1b. System configuration
+# Split findings: setup.sh is idempotent and remediates almost everything it provisions,
+# so all such items collapse into a single "re-run setup.sh" fix. Targeted commands remain
+# only for what setup.sh cannot do (repo clone/sync, YubiKey relay, Claude settings merge,
+# reverse-syncing untracked allows into the repo).
+setup_items=()
+manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        pro-apt-news)
-            printf "\n  ${CYAN}# Disable Ubuntu Pro apt advertisements${NC}\n"
-            echo "  sudo pro config set apt_news=false"
-            ;;
-        pro-mask-services)
-            printf "\n  ${CYAN}# Mask Pro apt-news / esm-cache services${NC}\n"
-            echo "  sudo systemctl mask apt-news.service esm-cache.service"
-            ;;
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|wsl-ipv6|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate)
+            setup_items+=("$item") ;;
+        *)
+            manual_items+=("$item") ;;
     esac
 done
 
-# 2. Dotfiles repo
-for item in "${unique_items[@]}"; do
+# 1. Dotfiles repo first — every other fix assumes an up-to-date clone
+for item in "${manual_items[@]+${manual_items[@]}}"; do
     case "$item" in
         dotfiles-clone)
             printf "\n  ${CYAN}# Clone dotfiles${NC}\n"
@@ -716,236 +707,41 @@ for item in "${unique_items[@]}"; do
             printf "\n  ${CYAN}# Sync dotfiles${NC}\n"
             echo "  cd ~/dotfiles && git pull --rebase"
             ;;
-        dotfiles-ssh-remote)
-            printf "\n  ${CYAN}# Switch dotfiles remote to SSH${NC}\n"
-            echo "  git -C ~/dotfiles remote set-url origin $DOTFILES_SSH_REMOTE"
-            ;;
     esac
 done
 
-# 2b. Machine config — append missing keys from template
-conf_keys=()
-for item in "${unique_items[@]}"; do
-    case "$item" in conf-key-*) conf_keys+=("${item#conf-key-}") ;; esac
-done
-if [ ${#conf_keys[@]} -gt 0 ]; then
-    printf "\n  ${CYAN}# Add missing keys to .setup.conf (appends defaults from template)${NC}\n"
-    printf "  # Missing: %s\n" "${conf_keys[*]}"
-    echo "  grep -E '^[A-Z_]+=' ~/dotfiles/.setup.conf.template | while IFS='=' read -r key _; do grep -q \"^\${key}=\" ~/dotfiles/.setup.conf || grep \"^\${key}=\" ~/dotfiles/.setup.conf.template >> ~/dotfiles/.setup.conf; done"
+# 2. One idempotent setup.sh run covers everything it provisions
+if [ ${#setup_items[@]} -gt 0 ]; then
+    printf "\n  ${CYAN}# Re-run setup.sh (idempotent) — fixes: %s${NC}\n" "${setup_items[*]}"
+    echo "  ( cd ~/dotfiles && bash setup.sh )"
 fi
 
-# 3. Stow symlinks (auto-collected from fix IDs)
-stow_packages=()
-for item in "${unique_items[@]}"; do
-    case "$item" in stow-*) stow_packages+=("${item#stow-}") ;; esac
-done
-if [ ${#stow_packages[@]} -gt 0 ]; then
-    printf "\n  ${CYAN}# Re-link stow packages${NC}\n"
-    cmd="  cd ~/dotfiles"
-    for pkg in "${stow_packages[@]}"; do cmd+=" && stow --adopt $pkg"; done
-    echo "$cmd"
-fi
-
-# 4. Shell config
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        bashrc-loader)
-            printf "\n  ${CYAN}# Inject dotfiles loader into .bashrc${NC}\n"
-            echo "  ( cd ~/dotfiles && bash setup.sh )"
-            break ;;
-    esac
-done
-
-# 5. SSH (before git — git push/pull needs SSH)
-ssh_fixes=false
-for item in "${unique_items[@]}"; do
-    case "$item" in ssh-*) ssh_fixes=true; break ;; esac
-done
-if $ssh_fixes; then
-    printf "\n  ${CYAN}# Fix SSH${NC}\n"
-    # If we need to decrypt, the public key must also be regenerated — combine into one command
-    has_decrypt=false
-    for item in "${unique_items[@]}"; do
-        [[ "$item" == "ssh-decrypt" ]] && has_decrypt=true && break
-    done
-    for item in "${unique_items[@]}"; do
-        case "$item" in
-            ssh-decrypt)        echo "  age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age && chmod 600 ~/.ssh/id_ed25519 && ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
-            ssh-regen-pub)      $has_decrypt || echo "  ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub" ;;
-            ssh-dir-perms)      echo "  chmod 700 ~/.ssh" ;;
-            ssh-stow-dir-perms) echo "  chmod 700 ~/dotfiles/ssh/.ssh" ;;
-            ssh-key-perms)      echo "  chmod 600 ~/.ssh/id_ed25519" ;;
-            ssh-config-perms)   echo "  chmod 644 ~/.ssh/config" ;;
-        esac
-    done
-fi
-
-# 5b. WSL config
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        wsl-ipv6)
-            printf "\n  ${CYAN}# Add IPv6 boot command to /etc/wsl.conf${NC}\n"
-            echo "  ( cd ~/dotfiles && bash setup.sh )"
-            break ;;
-    esac
-done
-
-# 5c. SSH agent relay (YubiKey) — one idempotent script provisions/repairs it
-for item in "${unique_items[@]}"; do
+# 3. Targeted fixes for what setup.sh can't do
+for item in "${manual_items[@]+${manual_items[@]}}"; do
     case "$item" in
         ssh-yubikey-relay)
             printf "\n  ${CYAN}# Provision/repair the Windows ssh-agent (YubiKey) relay${NC}\n"
             echo "  wsl_ssh_agent.sh"
-            break ;;
-    esac
-done
-
-# 6. Global LLM instructions
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        llm-global)
-            printf "\n  ${CYAN}# Re-link global LLM instructions (also prunes retired symlinks)${NC}\n"
-            echo "  ( cd ~/dotfiles && bash setup.sh )"
-            break ;;
-    esac
-done
-
-# 6b. Project agent symlinks in ~/dotfiles (CLAUDE.md/AGENTS.md → CONTRIBUTING.md)
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        project-agent-symlinks)
-            printf "\n  ${CYAN}# Recreate project agent symlinks in ~/dotfiles (CLAUDE/AGENTS.md → CONTRIBUTING.md)${NC}\n"
-            echo "  ( cd ~/dotfiles && bash setup.sh )"
-            break ;;
-    esac
-done
-
-# 7. Executable scripts
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        bin-exec)
-            printf "\n  ${CYAN}# Fix script permissions${NC}\n"
-            echo "  chmod +x ~/bin/*.sh"
-            break ;;
-    esac
-done
-
-# 8. APT packages
-apt_pkgs=()
-for item in "${unique_items[@]}"; do
-    case "$item" in apt-*) apt_pkgs+=("${item#apt-}") ;; esac
-done
-if [ ${#apt_pkgs[@]} -gt 0 ]; then
-    printf "\n  ${CYAN}# Install packages${NC}\n"
-    echo "  sudo apt install -y ${apt_pkgs[*]}"
-fi
-
-# 9. Dev toolchains
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        install-rust)
-            printf "\n  ${CYAN}# Install Rust${NC}\n"
-            echo "  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy,rustfmt"
             ;;
-        install-fnm)
-            printf "\n  ${CYAN}# Install fnm${NC}\n"
-            echo "  curl -fsSL https://fnm.vercel.app/install | bash"
-            ;;
-        install-node)
-            printf "\n  ${CYAN}# Install Node LTS${NC}\n"
-            echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && fnm install --lts"
-            ;;
-        install-vite)
-            printf "\n  ${CYAN}# Install vite${NC}\n"
-            echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && npm install -g vite"
-            ;;
-        install-pnpm)
-            printf "\n  ${CYAN}# Install pnpm${NC}\n"
-            echo "  export PATH=\"\$HOME/.local/share/fnm:\$PATH\" && eval \"\$(fnm env --shell bash)\" && npm install -g pnpm"
-            ;;
-        install-icp)
-            printf "\n  ${CYAN}# Install dfxvm (DFINITY SDK)${NC}\n"
-            echo '  sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"'
-            ;;
-        install-ic-admin)
-            printf "\n  ${CYAN}# Install ic-admin${NC}\n"
-            echo '  mkdir -p ~/.local/bin && curl -L "https://github.com/dfinity/ic/releases/latest/download/ic-admin-x86_64-linux.gz" -o - | gunzip > ~/.local/bin/ic-admin && chmod 0755 ~/.local/bin/ic-admin'
-            ;;
-        install-ff)
-            printf "\n  ${CYAN}# Install Firefox latest (Mozilla apt repo)${NC}\n"
-            echo '  sudo install -d -m 0755 /etc/apt/keyrings && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null && printf '"'"'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n'"'"' | sudo tee /etc/apt/preferences.d/mozilla && sudo apt update && sudo apt install -y firefox'
-            ;;
-        install-ffesr)
-            printf "\n  ${CYAN}# Install Firefox ESR (Mozilla apt repo)${NC}\n"
-            echo '  sudo install -d -m 0755 /etc/apt/keyrings && curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null && echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null && printf '"'"'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n'"'"' | sudo tee /etc/apt/preferences.d/mozilla && sudo apt update && sudo apt install -y firefox-esr'
-            ;;
-        install-python)
-            printf "\n  ${CYAN}# Install Python + pip + venv${NC}\n"
-            echo "  sudo apt install -y python3 python3-pip python3-venv"
-            ;;
-        install-docker)
-            printf "\n  ${CYAN}# Install Docker Compose${NC}\n"
-            echo "  sudo apt install -y docker-compose-v2"
-            ;;
-        docker-group)
-            printf "\n  ${CYAN}# Add user to docker group (logout/login to take effect)${NC}\n"
-            echo "  sudo usermod -aG docker \$USER"
-            ;;
-        install-glow)
-            printf "\n  ${CYAN}# Install glow (markdown pager from Charm apt repo)${NC}\n"
-            echo '  sudo mkdir -p /etc/apt/keyrings && curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg && echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list && sudo apt update && sudo apt install -y glow'
-            ;;
-        install-gh)
-            printf "\n  ${CYAN}# Install gh (GitHub CLI from GitHub apt repo)${NC}\n"
-            echo '  sudo mkdir -p -m 755 /etc/apt/keyrings && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null && sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt update && sudo apt install -y gh'
-            ;;
-    esac
-done
-
-# 10. Claude Code settings
-for item in "${unique_items[@]}"; do
-    case "$item" in
         claude-settings)
             printf "\n  ${CYAN}# Deploy Claude Code settings${NC}\n"
             echo "  cp ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json"
-            break ;;
+            ;;
         claude-settings-symlink)
             printf "\n  ${CYAN}# Convert settings.json from symlink to copy${NC}\n"
             echo "  rm ~/.claude/settings.json && cp ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json"
-            break ;;
-        agy-settings)
-            printf "\n  ${CYAN}# Merge Antigravity settings template into local configuration${NC}\n"
-            echo "  ( cd ~/dotfiles && bash setup.sh )"
-            break ;;
+            ;;
         agy-settings-symlink)
             printf "\n  ${CYAN}# Convert agy settings.json from symlink to local file${NC}\n"
             echo "  rm ~/.gemini/antigravity-cli/settings.json && ( cd ~/dotfiles && bash setup.sh )"
-            break ;;
+            ;;
         claude-untracked-allows)
             printf "\n  ${CYAN}# Add local Claude allows to dotfiles template${NC}\n"
             echo "  jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' ~/.claude/settings.json ~/dotfiles/claude/.claude/settings.json > ~/dotfiles/claude/.claude/settings.json.tmp && mv ~/dotfiles/claude/.claude/settings.json.tmp ~/dotfiles/claude/.claude/settings.json"
-            break ;;
+            ;;
         agy-untracked-allows)
             printf "\n  ${CYAN}# Add local Antigravity allows to dotfiles template${NC}\n"
             echo "  jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' ~/.gemini/antigravity-cli/settings.json ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json > ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json.tmp && mv ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json.tmp ~/dotfiles/gemini/.gemini/antigravity-cli/settings.json"
-            break ;;
-    esac
-done
-
-# 11. LLM agents
-for item in "${unique_items[@]}"; do
-    case "$item" in
-        claude-cli)
-            printf "\n  ${CYAN}# Install Claude Code${NC}\n"
-            echo "  curl -fsSL https://claude.ai/install.sh | bash"
-            ;;
-        antigravity-cli)
-            printf "\n  ${CYAN}# Install Antigravity CLI${NC}\n"
-            echo "  curl -fsSL https://antigravity.google/cli/install.sh | bash"
-            ;;
-        gemini-migrate)
-            printf "\n  ${CYAN}# Migrate Gemini CLI → Antigravity CLI (Gemini CLI stops serving 2026-06-18)${NC}\n"
-            echo "  sed -i 's/^INSTALL_GEMINI_CLI=/INSTALL_ANTIGRAVITY=/' ~/dotfiles/.setup.conf && npm uninstall -g @google/gemini-cli 2>/dev/null; cd ~/dotfiles && bash setup.sh"
             ;;
     esac
 done

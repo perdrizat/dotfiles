@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-10]
+
+### Changed
+
+- `setup.sh`: self-heal `.setup.conf` on every executed run — migrate `INSTALL_GEMINI_CLI` → `INSTALL_ANTIGRAVITY` (preserving its value) and append template keys missing from the machine config; skipped when sourced, so `validate_setup.sh` stays read-only
+- `setup.sh`: uninstall the retired Gemini CLI when its binary is present; enforce SSH permissions (700 `~/.ssh`, 600 key, 644 config) behind the previously empty "Fixing remaining SSH permissions" step
+- `bin/bin/validate_setup.sh`: consolidate fix commands — every finding that the idempotent `setup.sh` provisions now prints as a single `( cd ~/dotfiles && bash setup.sh )` fix; targeted commands remain only for repo clone/sync, the YubiKey relay, Claude settings deploy, and reverse-syncing untracked allows into the repo
+- `CONTRIBUTING.md`: Validation section documents the consolidated setup.sh fix behavior
+
+### Removed
+
+- `bin/bin/validate_setup.sh`: orphaned `ssh-stow-dir-perms` fix entry (no check ever produced it)
+
 ## [2026-06-09]
 
 ### Added
