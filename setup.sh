@@ -76,6 +76,8 @@ source "$CONFIG_FILE"
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
+NEEDS_RESTART=false
+
 # Disable Ubuntu Pro apt advertisements (keep the package, just silence it)
 if command -v pro >/dev/null 2>&1; then
     sudo pro config set apt_news=false 2>/dev/null || true
@@ -101,6 +103,7 @@ EOF
 if ! grep -q "Custom Dotfiles Loader" ~/.bashrc; then
     echo "Appending custom loader to ~/.bashrc..."
     echo "$BASHDOT" >> ~/.bashrc
+    NEEDS_RESTART=true
 else
     echo "Custom loader already exists in .bashrc, skipping..."
 fi
@@ -191,16 +194,18 @@ for _retired in ~/.gemini/AGENTS.md ~/.gemini/skills ~/.gemini/skills.inactive "
 done
 
 # sort out SSH
-# Decrypt SSH key if it doesn't already exist
-if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
-    echo "Decrypting SSH key..."
-    touch ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-    age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age
-fi
-# Regenerate public key from private key (pub key is not tracked in git)
-if [ -f ~/.ssh/id_ed25519 ]; then
-    echo "Regenerating public key from private key..."
-    ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+if [[ "$SSH_YUBIKEY" != true ]]; then
+    # Decrypt SSH key if it doesn't already exist
+    if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
+        echo "Decrypting SSH key..."
+        touch ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+        age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age
+    fi
+    # Regenerate public key from private key (pub key is not tracked in git)
+    if [ -f ~/.ssh/id_ed25519 ]; then
+        echo "Regenerating public key from private key..."
+        ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
+    fi
 fi
 echo "Fixing remaining SSH permissions..."
 chmod 700 ~/.ssh
@@ -278,6 +283,7 @@ fi
 # Add current user to docker group (requires logout/login to take effect)
 if [[ "$INSTALL_DOCKER" == true ]] && ! id -nG "$USER" | grep -qw docker; then
     sudo usermod -aG docker "$USER"
+    NEEDS_RESTART=true
 fi
 
 # --- Dev toolchains (curl-based, idempotent) ---
@@ -286,12 +292,14 @@ if [[ "$INSTALL_RUST" == true ]] && ! command -v rustup >/dev/null 2>&1; then
     echo "Installing Rust via rustup..."
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable -c clippy,rustfmt
     source "$HOME/.cargo/env"
+    NEEDS_RESTART=true
 fi
 
 if [[ "$INSTALL_NODE" == true ]]; then
     if ! command -v fnm >/dev/null 2>&1; then
         echo "Installing fnm (Fast Node Manager)..."
         curl -fsSL https://fnm.vercel.app/install | bash
+        NEEDS_RESTART=true
     fi
     # Make fnm available in this script (bashrc guard blocks source in non-interactive shells)
     export PATH="$HOME/.local/share/fnm:$PATH"
@@ -317,6 +325,7 @@ if [[ "$INSTALL_ICP" == true ]]; then
     if ! command -v dfxvm >/dev/null 2>&1; then
         echo "Installing dfxvm (DFINITY SDK version manager)..."
         sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+        NEEDS_RESTART=true
     fi
     if ! command -v ic-admin >/dev/null 2>&1; then
         echo "Installing ic-admin..."
@@ -394,12 +403,16 @@ fi
 # --- WSL ssh-agent relay (YubiKey) ---
 # Idempotent; only prompts (UAC / YubiKey touch) for pieces that are missing.
 if [[ "$SSH_YUBIKEY" == true ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+    [ ! -f "$HOME/.config/dotfiles/ssh_agent.env" ] && NEEDS_RESTART=true
     echo "Configuring Windows ssh-agent (YubiKey) relay..."
-    bash "$DOTFILES_DIR/bin/bin/wsl_ssh_agent.sh" || echo "wsl_ssh_agent.sh reported issues — run it manually to finish."
+    bash "$DOTFILES_DIR/bin/bin/wsl_ssh_agent.sh" -q || echo "wsl_ssh_agent.sh reported issues — run it manually to finish."
 fi
 
-echo "Setup complete! Restart your shell or run"
-echo '. ~/.bashrc'
+echo "Setup complete!"
+if [[ "$NEEDS_RESTART" == true ]]; then
+    echo "Restart your shell or run"
+    echo '. ~/.bashrc'
+fi
 echo ""
 echo "To update packages and toolchains, run:"
 echo "  validate_setup.sh -u"

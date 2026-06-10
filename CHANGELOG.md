@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-11]
+
+### Changed
+- `bin/bin/wsl_ssh_agent.sh`: replace blind key recovery with an interactive prompt (recover/generate/skip) on fresh machines, invoke powershell directly to fix hidden stderr prompts, and display GitHub + test connection instructions for newly generated keys
+- `bin/bin/wsl_ssh_agent.sh`: add `-q`/`--quiet` option to silence success/info messages (prompts and errors remain visible)
+- `setup.sh`: invoke `wsl_ssh_agent.sh` with `-q` to avoid cluttering the output when the relay is already successfully configured
+- `setup.sh`: skip decryption and regeneration of `~/.ssh/id_ed25519` via `age` when `SSH_YUBIKEY=true` (since the YubiKey resident key is used instead)
+- `setup.sh`: make the `. ~/.bashrc` shell restart call-to-action contingent on actual changes (modifying `.bashrc`, or installing `rustup`, `fnm`, `dfxvm`, docker group, or a fresh YubiKey relay)
+
 ## [2026-06-10]
 
 ### Added

@@ -39,10 +39,10 @@ NPIPERELAY_URL="https://github.com/jstarks/npiperelay/releases/download/${NPIPER
 RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[1;33m'
 CYAN=$'\033[0;36m'; BOLD=$'\033[1m'; NC=$'\033[0m'
 
-print_header()  { printf "\n${BOLD}%s${NC}\n" "$1"; }
+print_header()  { [ "$QUIET" = true ] && return 0; printf "\n${BOLD}%s${NC}\n" "$1"; }
 print_error()   { printf "${RED}ERROR: %s${NC}\n" "$1" >&2; }
-print_success() { printf "${GREEN}OK: %s${NC}\n" "$1"; }
-print_info()    { printf "${CYAN}INFO: %s${NC}\n" "$1"; }
+print_success() { [ "$QUIET" = true ] && return 0; printf "${GREEN}OK: %s${NC}\n" "$1"; }
+print_info()    { [ "$QUIET" = true ] && return 0; printf "${CYAN}INFO: %s${NC}\n" "$1"; }
 print_warn()    { printf "${YELLOW}WARN: %s${NC}\n" "$1" >&2; }
 
 # ============================================================================
@@ -184,14 +184,65 @@ ensure_key_handle() {
         print_success "sk key handle present on Windows"
         return 0
     fi
-    if [ "$DRY_RUN" = true ]; then print_info "would: ssh-keygen -K in %USERPROFILE%\\.ssh (touch + PIN)"; return 0; fi
-    print_info "Recovering resident sk key from YubiKey (touch + PIN)..."
-    # Run in %USERPROFILE%\.ssh so -K writes the handle there.
-    ps "Set-Location \$env:USERPROFILE\\.ssh; ssh-keygen -K"
-    [ -e "$handle" ] && print_success "sk key handle recovered" || print_warn "Key handle still missing — was the YubiKey present?"
+    if [ "$DRY_RUN" = true ]; then print_info "would: prompt for recover/generate/skip"; return 0; fi
+
+    print_warn "No resident sk key handle found at Windows path: ~/.ssh/$SK_KEY_NAME"
+    local choice
+    while true; do
+        printf "What would you like to do?\n"
+        printf "  [r] Recover an existing resident key from YubiKey (ssh-keygen -K)\n"
+        printf "  [g] Generate a new resident key on this YubiKey\n"
+        printf "  [s] Skip for now (allows setup to continue)\n"
+        read -r -p "> " choice
+        case "$choice" in
+            [Rr]* ) 
+                print_info "Recovering resident sk key from YubiKey (touch + PIN)..."
+                # Run in %USERPROFILE%\.ssh so -K writes the handle there. Run directly to avoid output buffering.
+                powershell.exe -NoProfile -Command "Set-Location \$env:USERPROFILE\\.ssh; ssh-keygen -K"
+                if [ -e "$handle" ]; then
+                    print_success "sk key handle recovered"
+                    return 0
+                else
+                    print_error "Key handle still missing — recovery failed."
+                    return 1
+                fi
+                ;;
+            [Gg]* )
+                print_info "Generating new resident sk key (touch + PIN)..."
+                # Generate directly into the expected path, no passphrase for the handle file. Run directly to avoid output buffering.
+                powershell.exe -NoProfile -Command "ssh-keygen -t ed25519-sk -O resident -O application=ssh:wsl -f \$env:USERPROFILE\\.ssh\\$SK_KEY_NAME -N '\"\"'"
+                if [ -e "$handle" ]; then
+                    print_success "New sk key generated"
+                    print_info "====================================================================="
+                    print_info "ACTION REQUIRED: Since this is a new key, you must add it to GitHub:"
+                    print_info "  1. Run this command to see your public key:"
+                    print_info "     cat \"$handle.pub\""
+                    print_info "  2. Copy the output and add it at https://github.com/settings/keys"
+                    print_info "  3. Test your connection by opening a new shell and running:"
+                    print_info "     ssh -T git@github.com"
+                    print_info "====================================================================="
+                    return 0
+                else
+                    print_error "Key generation failed."
+                    return 1
+                fi
+                ;;
+            [Ss]* )
+                print_warn "Skipping YubiKey setup. The relay will start but no key will be loaded."
+                return 0
+                ;;
+            * ) print_error "Please answer r, g, or s." ;;
+        esac
+    done
 }
 
 ensure_key_in_agent() {
+    local win_home; win_home=$(win_home_wsl) || return 1
+    local handle="$win_home/.ssh/$SK_KEY_NAME"
+    if [ ! -e "$handle" ]; then
+        print_warn "sk key handle missing; skipping ssh-add"
+        return 0
+    fi
     if agent_lists_sk "$(ps 'ssh-add -l')"; then
         print_success "sk key loaded in Windows agent"
         return 0
@@ -238,6 +289,7 @@ Idempotent — safe to re-run; only does work for what is actually missing.
 ${BOLD}Options:${NC}
   -h, --help       Show this help and exit
   -d, --dry-run    Show what would happen without changing anything
+  -q, --quiet      Suppress success and info messages (errors and prompts remain visible)
 
 ${BOLD}Requirements:${NC}
   - WSL2 with powershell.exe interop
@@ -254,10 +306,12 @@ EOF
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
 DRY_RUN=false
+QUIET=false
 while [ $# -gt 0 ]; do
     case "$1" in
         -h|--help) show_help; exit 0 ;;
         -d|--dry-run|--dryrun) DRY_RUN=true ;;
+        -q|--quiet) QUIET=true ;;
         -*) print_error "Unknown option: $1"; echo "Run '$(basename "$0") --help' for usage." >&2; exit 1 ;;
         *)  print_error "Unexpected argument: $1"; exit 1 ;;
     esac
