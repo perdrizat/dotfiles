@@ -21,7 +21,7 @@ Each top-level directory is a stow package. Running `stow --adopt <package>` fro
 | `bash`   | `.bash_aliases`, `.bash_extra`      |
 | `bin`    | `~/bin/` scripts (status, validate, init) |
 | `claude` | `~/.claude/settings.json`           |
-| `gemini` | `~/.gemini/config/skills` + `skills.inactive` (Antigravity `agy` skills) |
+| `gemini` | `~/.gemini/config/skills` + `skills.inactive` (Antigravity `agy` skills). Also carries the `agy` settings **template** (`antigravity-cli/settings.json`) — excluded from stow via `.stow-local-ignore`; `setup.sh` deploys/merges it as a local copy, never a symlink |
 | `git`    | `.gitconfig`                        |
 | `ssh`    | `.ssh/config`, `.ssh/id_ed25519.age` |
 

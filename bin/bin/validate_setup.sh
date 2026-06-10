@@ -233,6 +233,8 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
     while IFS= read -r -d '' entry; do
         relative="${entry#"$pkg_dir"}"
         relative="${relative%/}"
+        # Subtrees excluded from stow (gemini/.stow-local-ignore) must never appear as folded links
+        [[ "$relative" == *antigravity-cli* ]] && continue
         target="$HOME/$relative"
         if [ -L "$target" ]; then
             actual=$(readlink -f "$target")
@@ -248,6 +250,10 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
         relative="${file#"$pkg_dir"}"
         # Skip repo-only files and gitignored files (e.g. generated keys, known_hosts)
         [[ "$(basename "$relative")" == .gitignore ]] && continue
+        # Skip stow ignore lists (repo-only, never stowed)
+        [[ "$(basename "$relative")" == .stow-local-ignore ]] && continue
+        # Skip subtrees excluded from stow via gemini/.stow-local-ignore
+        [[ "$relative" == *antigravity-cli* ]] && continue
         # Skip settings.json (deployed from template, not via stow)
         [[ "$(basename "$relative")" == settings.json ]] && continue
         git -C "$DOTFILES_DIR" check-ignore -q "$file" 2>/dev/null && continue
@@ -326,12 +332,16 @@ fi
 print_header "Antigravity Configuration"
 
 AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
-if [ -L "$AGY_SETTINGS" ]; then
+if [ -L "$HOME/.gemini/antigravity-cli" ]; then
+    # Folded stow symlink: agy writes runtime state (settings, oauth token, logs) into the repo
+    print_row "agy config dir" "${RED}✗ Stow symlink${NC}" "agy writes into the repo — run setup.sh to unfold"
+    missing_items+=("agy-settings")
+elif [ -L "$AGY_SETTINGS" ]; then
     target=$(readlink "$AGY_SETTINGS")
     print_row "agy settings.json" "${YELLOW}⚠ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("agy-settings-symlink")
 elif [ -f "$AGY_SETTINGS" ]; then
-    required_keys=("permissions" "statusLine" "hooks")
+    required_keys=("permissions" "statusLine" "hooks" "title")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do

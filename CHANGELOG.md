@@ -8,12 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-06-10]
 
+### Added
+
+- `bin/bin/agy_title.sh` + `title` block in the agy settings template: agy sets the terminal title to `agy@<workspace>` (✳-prefixed while working), mirroring Claude's `terminalTitleFromRename`; `setup.sh` merges `title` parity and `validate_setup.sh` requires the key
+- `gemini/.stow-local-ignore`: permanently excludes `antigravity-cli` from stow — template stays repo-only, deployed copy stays local
+
 ### Changed
 
 - `setup.sh`: self-heal `.setup.conf` on every executed run — migrate `INSTALL_GEMINI_CLI` → `INSTALL_ANTIGRAVITY` (preserving its value) and append template keys missing from the machine config; skipped when sourced, so `validate_setup.sh` stays read-only
 - `setup.sh`: uninstall the retired Gemini CLI when its binary is present; enforce SSH permissions (700 `~/.ssh`, 600 key, 644 config) behind the previously empty "Fixing remaining SSH permissions" step
 - `bin/bin/validate_setup.sh`: consolidate fix commands — every finding that the idempotent `setup.sh` provisions now prints as a single `( cd ~/dotfiles && bash setup.sh )` fix; targeted commands remain only for repo clone/sync, the YubiKey relay, Claude settings deploy, and reverse-syncing untracked allows into the repo
-- `CONTRIBUTING.md`: Validation section documents the consolidated setup.sh fix behavior
+- `CONTRIBUTING.md`: Validation section documents the consolidated setup.sh fix behavior; `gemini` package row documents the stow-excluded agy settings template
+- `gemini/.gemini/antigravity-cli/settings.json`: template gains agy runtime defaults (`model`, `colorScheme`, `enableTelemetry`, `allowNonWorkspaceAccess`, `verbosity`) and a `pgrep` allow
+
+### Fixed
+
+- `setup.sh`: the agy settings merge enforces `statusLine`/`hooks` parity only for keys the template actually has — a template missing one of them no longer stamps `null` into (or erases hooks from) `~/.gemini/antigravity-cli/settings.json`, which had locked validate/setup into a permanent "missing keys: hooks" loop
+- Root cause of the agy template corruption: the template lives inside the `gemini` stow package, so `setup.sh`'s `stow --adopt` adopted the live `~/.gemini/antigravity-cli/settings.json` into the repo (clobbering the template) or folded the whole dir into a repo symlink (agy then wrote runtime state — settings, logs, oauth token — straight into the git tree). Same bug class as the Claude `settings.json` stow fix from 2026-04-27; `claude` could be `STOW_SKIP`ped wholesale, `gemini` can't (skills must stow)
+- `setup.sh`: unfold a symlinked `~/.gemini/antigravity-cli` before stowing, salvaging agy runtime state (oauth token, logs, history) from the repo into the new local dir
+- `bin/bin/validate_setup.sh`: flag a symlinked `~/.gemini/antigravity-cli` as ✗ (was praised as "✓ Linked"); skip `.stow-local-ignore` and the excluded subtree in the stow checks
 
 ### Removed
 

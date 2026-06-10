@@ -107,6 +107,22 @@ echo "Linking dotfiles with Stow..."
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
 mkdir -p ~/.ssh && chmod 700 ~/.ssh # prevent stow from folding .ssh into a symlink (generated files must not land in repo)
 mkdir -p ~/.gemini/config  # real dir so stow folds skills at ~/.gemini/config/skills (agy writes other config here)
+# ~/.gemini/antigravity-cli must be a real local dir, never a stow symlink into the repo:
+# agy writes runtime state (settings, logs, oauth token) there — a folded dir symlink made
+# agy write into the repo and let `stow --adopt` clobber the settings template. The subtree
+# is excluded from stow via gemini/.stow-local-ignore; unfold any pre-existing symlink here.
+if [ -L ~/.gemini/antigravity-cli ]; then
+    rm -f ~/.gemini/antigravity-cli
+    mkdir -p ~/.gemini/antigravity-cli
+    # Salvage agy runtime state written through the old symlink into the repo (oauth token,
+    # logs, history, …) — everything except the tracked settings.json template
+    for _f in "$DOTFILES_DIR"/gemini/.gemini/antigravity-cli/* "$DOTFILES_DIR"/gemini/.gemini/antigravity-cli/.[!.]*; do
+        [ -e "$_f" ] || [ -L "$_f" ] || continue
+        [ "$(basename "$_f")" = "settings.json" ] && continue
+        mv "$_f" ~/.gemini/antigravity-cli/
+    done
+    echo "Unfolded ~/.gemini/antigravity-cli (was a stow symlink into the repo); salvaged agy runtime state"
+fi
 for pkg_dir in "$DOTFILES_DIR"/*/; do
     pkg=$(basename "$pkg_dir")
     skip=false
@@ -302,7 +318,9 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
     AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
     if [[ -f "$AGY_SETTINGS" ]]; then
-        jq -s '.[0] * {statusLine: .[1].statusLine, hooks: .[1].hooks, permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}' "$AGY_SETTINGS" "$AGY_TEMPLATE" > "${AGY_SETTINGS}.tmp" && mv "${AGY_SETTINGS}.tmp" "$AGY_SETTINGS"
+        # Enforce statusLine/hooks/title parity from the template, but only for keys the template
+        # actually has (a missing template key must never inject null or erase local values)
+        jq -s '.[0] * (.[1] | {statusLine, hooks, title} | with_entries(select(.value != null))) * {permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}' "$AGY_SETTINGS" "$AGY_TEMPLATE" > "${AGY_SETTINGS}.tmp" && mv "${AGY_SETTINGS}.tmp" "$AGY_SETTINGS"
         echo "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
         cp "$AGY_TEMPLATE" "$AGY_SETTINGS"

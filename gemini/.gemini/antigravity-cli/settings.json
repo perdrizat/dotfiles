@@ -1,4 +1,8 @@
 {
+  "allowNonWorkspaceAccess": true,
+  "colorScheme": "dark",
+  "enableTelemetry": false,
+  "model": "GPT-OSS 120B (Medium)",
   "permissions": {
     "allow": [
       "command(break)",
@@ -36,6 +40,15 @@
       "command(~/bin/check_changelog.sh)"
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "~/bin/agy_status.sh",
+    "enabled": true
+  },
+  "title": {
+    "command": "~/bin/agy_title.sh",
+    "enabled": true
+  },
   "hooks": {
     "Stop": [
       {
@@ -48,9 +61,5 @@
       }
     ]
   },
-  "statusLine": {
-    "type": "command",
-    "command": "~/bin/agy_status.sh",
-    "enabled": true
-  }
+  "verbosity": "low"
 }
