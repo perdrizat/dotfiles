@@ -40,16 +40,19 @@ CONFIG_FILE="${DOTFILES_CONFIG:-$DOTFILES_DIR/.setup.conf}"
 # Self-heal the machine config before sourcing it — executed runs only, so that
 # validate_setup.sh (which sources this file for shared variables) stays read-only.
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    # Migrate the retired Gemini CLI toggle, preserving its value
+    # Migrate the retired Gemini CLI toggle, preserving its value. Edited in memory and
+    # written back via redirect — sed -i would rename a temp file over $CONFIG_FILE,
+    # replacing its inode (and clobbering a symlinked DOTFILES_CONFIG into a regular file).
     if grep -q '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE"; then
         _gem=$(grep '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE" | tail -1 | cut -d= -f2 | awk '{print $1}')
         _gem=${_gem:-false}
-        sed -i '/^INSTALL_GEMINI_CLI=/d' "$CONFIG_FILE"
-        if grep -q '^INSTALL_ANTIGRAVITY=' "$CONFIG_FILE"; then
-            [ "$_gem" = "true" ] && sed -i 's/^INSTALL_ANTIGRAVITY=.*/INSTALL_ANTIGRAVITY=true/' "$CONFIG_FILE"
+        _conf=$(grep -v '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE")
+        if grep -q '^INSTALL_ANTIGRAVITY=' <<<"$_conf"; then
+            [ "$_gem" = "true" ] && _conf=$(sed 's/^INSTALL_ANTIGRAVITY=.*/INSTALL_ANTIGRAVITY=true/' <<<"$_conf")
         else
-            echo "INSTALL_ANTIGRAVITY=$_gem" >> "$CONFIG_FILE"
+            _conf+=$'\n'"INSTALL_ANTIGRAVITY=$_gem"
         fi
+        printf '%s\n' "$_conf" > "$CONFIG_FILE"
         echo "Migrated config: INSTALL_GEMINI_CLI → INSTALL_ANTIGRAVITY=$_gem"
     fi
     # Append template keys missing from the machine config (with their defaults)
@@ -136,10 +139,30 @@ done
 # Ensure ~/bin scripts are executable
 chmod +x "$HOME"/bin/*.sh 2>/dev/null || true
 
-# Deploy settings.json from template (not via stow to allow local customization)
-if [ ! -f ~/.claude/settings.json ]; then
-    cp "$DOTFILES_DIR/claude/.claude/settings.json" ~/.claude/settings.json
+# Settings merges: every sync below is "merge src into dest via a jq program". The helper
+# computes the merge, then writes ONLY when the result differs from dest as JSON (jq ==
+# ignores formatting/key order) — a reported merge always means a real change. Writes in
+# place via redirect, never mv/tmp-file: dest keeps its inode (hardlinks/symlinks survive).
+merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src) $4=message
+    local _merged
+    _merged=$(jq -s "$3" "$1" "$2") || return 1
+    if ! jq -e --argjson m "$_merged" '. == $m' "$1" >/dev/null; then
+        printf '%s\n' "$_merged" > "$1" && echo "$4"
+    fi
+}
+# Union of allow lists (dest ⊇ src), all other dest keys untouched — shared by every merge
+ALLOWS_UNION='.[0] * {permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}'
+
+# Deploy Claude settings.json from template (not via stow to allow local customization),
+# then keep forward-merging template allows so allows committed on other machines propagate
+CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+CLAUDE_TEMPLATE="$DOTFILES_DIR/claude/.claude/settings.json"
+if [ ! -f "$CLAUDE_SETTINGS" ]; then
+    cp "$CLAUDE_TEMPLATE" "$CLAUDE_SETTINGS"
     echo "Deployed settings.json template to ~/.claude/settings.json"
+else
+    merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" "$ALLOWS_UNION" \
+        "Merged template allows into ~/.claude/settings.json"
 fi
 
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
@@ -309,19 +332,30 @@ if [[ "$INSTALL_CLAUDE" == true ]] && ! command -v claude >/dev/null 2>&1; then
 fi
 
 if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
+    # Pre-CLI-era leftover: ~/.local/bin/agy was a symlink to the Windows Antigravity
+    # IDE binary. Dangling (or /mnt/*-pointing) links block the installer's write with
+    # "Permission denied" on every run — remove them so the real CLI can land.
+    AGY_BIN="$HOME/.local/bin/agy"
+    if [ -L "$AGY_BIN" ] && { [ ! -e "$AGY_BIN" ] || [[ "$(readlink "$AGY_BIN")" == /mnt/* ]]; }; then
+        echo "Removing stale agy symlink → $(readlink "$AGY_BIN")"
+        rm -f "$AGY_BIN"
+    fi
     if ! command -v agy >/dev/null 2>&1; then
         echo "Installing Antigravity CLI..."
         curl -fsSL https://antigravity.google/cli/install.sh | bash
+        # PATH may lack ~/.local/bin in a curl-piped run — check the binary directly too
+        command -v agy >/dev/null 2>&1 || [ -x "$AGY_BIN" ] || echo "WARNING: Antigravity CLI install failed — re-run setup.sh or install manually."
     fi
     # Deploy/merge agy settings
     mkdir -p ~/.gemini/antigravity-cli
     AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
     AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
     if [[ -f "$AGY_SETTINGS" ]]; then
-        # Enforce statusLine/hooks/title parity from the template, but only for keys the template
+        # Allows union + statusLine/hooks/title parity, but only for keys the template
         # actually has (a missing template key must never inject null or erase local values)
-        jq -s '.[0] * (.[1] | {statusLine, hooks, title} | with_entries(select(.value != null))) * {permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}' "$AGY_SETTINGS" "$AGY_TEMPLATE" > "${AGY_SETTINGS}.tmp" && mv "${AGY_SETTINGS}.tmp" "$AGY_SETTINGS"
-        echo "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
+        merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
+            "$ALLOWS_UNION * (.[1] | {statusLine, hooks, title} | with_entries(select(.value != null)))" \
+            "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
         cp "$AGY_TEMPLATE" "$AGY_SETTINGS"
         echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
@@ -329,26 +363,27 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
 fi
 
 # Reverse-sync: fold allows granted locally back into the repo templates, so they can be
-# committed and shared across machines. Union only — never removes template entries.
+# committed and shared across machines. Same union as the forward merges, dest/src swapped.
 for _pair in "$HOME/.claude/settings.json:$DOTFILES_DIR/claude/.claude/settings.json" \
              "$HOME/.gemini/antigravity-cli/settings.json:$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"; do
     _local="${_pair%%:*}"; _template="${_pair#*:}"
     [ -f "$_local" ] && [ -f "$_template" ] || continue
-    _untracked=$(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | length' "$_local" "$_template" 2>/dev/null)
-    if [ "${_untracked:-0}" -gt 0 ]; then
-        jq -s '.[1] * {permissions: {allow: ((.[1].permissions.allow // []) + .[0].permissions.allow | unique)}}' "$_local" "$_template" > "${_template}.tmp" && mv "${_template}.tmp" "$_template"
-        echo "Synced $_untracked local allow(s) into $(basename "$(dirname "$_template")")/settings.json template — commit ~/dotfiles to share"
-    fi
+    merge_settings "$_template" "$_local" "$ALLOWS_UNION" \
+        "Synced local allows into $(basename "$(dirname "$_template")")/settings.json template — commit ~/dotfiles to share"
 done
 
 # Uninstall the retired Gemini CLI (replaced by Antigravity; stops serving 2026-06-18).
-# npm lives under fnm — put it on PATH ourselves so this works even when INSTALL_NODE=false.
+# Use the npm that OWNS the package — it sits in the same bin dir as the gemini launcher
+# (an old nvm install, say), while npm-on-PATH may belong to a different prefix (fnm) and
+# silently uninstall nothing. Fall back to PATH/fnm npm if no sibling npm exists.
 if command -v gemini >/dev/null 2>&1; then
-    if ! command -v npm >/dev/null 2>&1 && [ -d "$HOME/.local/share/fnm" ]; then
-        export PATH="$HOME/.local/share/fnm:$PATH"
-        eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
-    fi
-    if command -v npm >/dev/null 2>&1; then
+    _gem_dir="$(dirname "$(command -v gemini)")"
+    if [ -x "$_gem_dir/node" ] && [ -e "$_gem_dir/npm" ]; then
+        # Sibling npm must run under the sibling node: its `env node` shebang would pick
+        # the PATH node (fnm) and npm derives its global prefix from the running node.
+        echo "Uninstalling retired Gemini CLI..."
+        "$_gem_dir/node" "$_gem_dir/npm" uninstall -g @google/gemini-cli
+    elif command -v npm >/dev/null 2>&1; then
         echo "Uninstalling retired Gemini CLI..."
         npm uninstall -g @google/gemini-cli
     else

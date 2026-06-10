@@ -22,6 +22,9 @@ if [[ ! -f "$AGY_CACHE" ]] || [[ $(($(date +%s) - $(stat -c %Y "$AGY_CACHE" 2>/d
             for PORT in $PORTS; do
                 RESPONSE=$(curl -sk -X POST -H "Content-Type: application/json" -H "Connect-Protocol-Version: 1" -d '{}' "https://127.0.0.1:$PORT/exa.language_server_pb.LanguageServerService/GetUserStatus" 2>/dev/null)
                 if echo "$RESPONSE" | jq -e '.userStatus' >/dev/null 2>&1; then
+                    # tmp+mv is deliberate: atomic publish. Concurrent status-line runs
+                    # read this cache and must never see a torn file; ~/.agy.json is owned
+                    # by this script and never hard/symlinked, so inode replacement is safe.
                     echo "$RESPONSE" > "$AGY_CACHE.tmp"
                     mv "$AGY_CACHE.tmp" "$AGY_CACHE"
                     break

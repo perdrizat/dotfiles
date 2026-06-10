@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `bin/bin/agy_title.sh` + `title` block in the agy settings template: agy sets the terminal title to `agy@<workspace>` (✳-prefixed while working), mirroring Claude's `terminalTitleFromRename`; `setup.sh` merges `title` parity and `validate_setup.sh` requires the key
 - `gemini/.stow-local-ignore`: permanently excludes `antigravity-cli` from stow — template stays repo-only, deployed copy stays local
+- `bin/bin/validate_setup.sh`: "Behind template" check (Claude + agy) — flags template allows missing from the local settings.json, the until-now invisible reverse of the untracked-allows check; setup.sh-fixable
 
 ### Changed
 
@@ -21,10 +22,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `bin/bin/validate_setup.sh`: consolidate fix commands — every finding that the idempotent `setup.sh` provisions now prints as a single `( cd ~/dotfiles && bash setup.sh )` fix; targeted commands remain only for repo clone/sync, the YubiKey relay, Claude settings deploy
 - `CONTRIBUTING.md`: Validation section documents the consolidated setup.sh fix behavior; `gemini` package row documents the stow-excluded agy settings template
 - `gemini/.gemini/antigravity-cli/settings.json`: template gains agy runtime defaults (`model`, `colorScheme`, `enableTelemetry`, `allowNonWorkspaceAccess`, `verbosity`) and a `pgrep` allow
+- `setup.sh`: all four settings syncs (forward + reverse, Claude + agy) unified into a `merge_settings` helper sharing one allows-union jq program — writes only when the merge result differs from the destination as JSON, so "Merged/Synced" always means a real change (the agy merge previously rewrote and reported on every run); writes in place via redirect instead of mv/tmp-file, preserving the destination inode (hardlinks, symlinks)
+- `setup.sh`: `.setup.conf` migration edits in memory and writes back via redirect — `sed -i` renames a temp file over the config, replacing its inode and clobbering a symlinked `DOTFILES_CONFIG` into a regular file
+- `bin/bin/agy_status.sh`: comment marks the cache tmp+mv as deliberate (atomic publish for concurrent status-line readers; file never linked)
+- `CONTRIBUTING.md`: "Link-safe file updates" convention — rewrite file content via in-memory edit + redirect, never `mv tmp-file target` or `sed -i` (inode replacement breaks hardlinks/symlinks); documents the relocation and atomic-publish exceptions
 
 ### Fixed
 
-- `setup.sh`: gemini uninstall puts fnm's npm on PATH itself, so the Gemini→Antigravity migration completes in one run even when `INSTALL_NODE=false` (previously the uninstall silently skipped without npm)
+- `setup.sh`: forward-merge Claude template allows into `~/.claude/settings.json` (union, mirrors the agy merge) — previously the template only deployed when no local file existed, so allows committed on other machines never propagated and this box silently lacked the 7 pnpm allows
+- `bin/bin/validate_setup.sh`: untracked-allows counts use jq `length` — the old word-split arrays overcounted entries containing spaces
+- `setup.sh`: remove a stale pre-CLI-era `~/.local/bin/agy` symlink (dangling or pointing at the Windows IDE under `/mnt/*`) before installing — it blocked the installer's write with "Permission denied" on every run; warn when the install still doesn't yield a binary
+- `setup.sh`: gemini uninstall runs the npm *next to the gemini launcher* under that dir's own node — npm's `env node` shebang made it inherit the PATH node (fnm) and uninstall from the wrong global prefix, leaving an nvm-installed gemini in place forever; also works without npm on PATH (`INSTALL_NODE=false`), where the uninstall previously skipped silently
 - `setup.sh`: the agy settings merge enforces `statusLine`/`hooks` parity only for keys the template actually has — a template missing one of them no longer stamps `null` into (or erases hooks from) `~/.gemini/antigravity-cli/settings.json`, which had locked validate/setup into a permanent "missing keys: hooks" loop
 - Root cause of the agy template corruption: the template lives inside the `gemini` stow package, so `setup.sh`'s `stow --adopt` adopted the live `~/.gemini/antigravity-cli/settings.json` into the repo (clobbering the template) or folded the whole dir into a repo symlink (agy then wrote runtime state — settings, logs, oauth token — straight into the git tree). Same bug class as the Claude `settings.json` stow fix from 2026-04-27; `claude` could be `STOW_SKIP`ped wholesale, `gemini` can't (skills must stow)
 - `setup.sh`: unfold a symlinked `~/.gemini/antigravity-cli` before stowing, salvaging agy runtime state (oauth token, logs, history) from the repo into the new local dir

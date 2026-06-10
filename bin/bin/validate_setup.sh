@@ -318,10 +318,17 @@ elif [ -f "$HOME/.claude/settings.json" ]; then
     fi
 
     # Check for untracked permissions
-    untracked_perms=($(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | .[]' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null))
-    if [ ${#untracked_perms[@]} -gt 0 ]; then
-        print_row ".claude/settings.json" "${YELLOW}⚠ Untracked allows${NC}" "${#untracked_perms[@]} local commands not in template"
+    untracked_perms=$(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | length' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
+    if [ "${untracked_perms:-0}" -gt 0 ]; then
+        print_row ".claude/settings.json" "${YELLOW}⚠ Untracked allows${NC}" "$untracked_perms local commands not in template"
         missing_items+=("claude-untracked-allows")
+    fi
+
+    # Check the reverse: template allows missing locally (forward-sync gap)
+    behind_perms=$(jq -r -s '[.[1].permissions.allow[]?] - [.[0].permissions.allow[]?] | length' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
+    if [ "${behind_perms:-0}" -gt 0 ]; then
+        print_row ".claude/settings.json" "${YELLOW}⚠ Behind template${NC}" "$behind_perms template allows missing locally"
+        missing_items+=("claude-template-allows")
     fi
 else
     print_row ".claude/settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create from template"
@@ -358,10 +365,17 @@ elif [ -f "$AGY_SETTINGS" ]; then
     fi
 
     # Check for untracked permissions
-    untracked_perms=($(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | .[]' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null))
-    if [ ${#untracked_perms[@]} -gt 0 ]; then
-        print_row "agy settings.json" "${YELLOW}⚠ Untracked allows${NC}" "${#untracked_perms[@]} local commands not in template"
+    untracked_perms=$(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | length' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
+    if [ "${untracked_perms:-0}" -gt 0 ]; then
+        print_row "agy settings.json" "${YELLOW}⚠ Untracked allows${NC}" "$untracked_perms local commands not in template"
         missing_items+=("agy-untracked-allows")
+    fi
+
+    # Check the reverse: template allows missing locally (forward-sync gap)
+    behind_perms=$(jq -r -s '[.[1].permissions.allow[]?] - [.[0].permissions.allow[]?] | length' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
+    if [ "${behind_perms:-0}" -gt 0 ]; then
+        print_row "agy settings.json" "${YELLOW}⚠ Behind template${NC}" "$behind_perms template allows missing locally"
+        missing_items+=("agy-template-allows")
     fi
 else
     print_row "agy settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create/merge from template"
@@ -698,7 +712,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|wsl-ipv6|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|wsl-ipv6|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;

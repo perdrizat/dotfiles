@@ -1,16 +1,20 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pre_commit_check.sh*)",
-      "Bash(validate_setup.sh*)",
-      "Bash(validate_project.sh*)",
+      "Bash(pnpm audit:*)",
       "Bash(pnpm build)",
       "Bash(pnpm lint)",
-      "Bash(pnpm typecheck)",
       "Bash(pnpm test)",
-      "Bash(pnpm test:fast *)",
       "Bash(pnpm test:e2e *)",
-      "Bash(pnpm test:uat *)"
+      "Bash(pnpm test:fast *)",
+      "Bash(pnpm test:uat *)",
+      "Bash(pnpm typecheck)",
+      "Bash(pre_commit_check.sh*)",
+      "Bash(validate_project.sh*)",
+      "Bash(validate_setup.sh*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.npmjs.com)"
     ]
   },
   "hooks": {
