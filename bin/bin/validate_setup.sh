@@ -458,14 +458,16 @@ if [[ "$SSH_YUBIKEY" == true ]]; then
     fi
 fi
 
-# --- WSL config (host-specific) ---
-if [ "$(hostname)" = "bequiet" ]; then
+# --- WSL config ---
+# Regression guard: a [boot] command that pins a static IPv6 address blackholes under
+# mirrored networking (retired 2026-06-11). Its presence is now the fault, not its absence.
+if grep -qi microsoft /proc/version 2>/dev/null; then
     print_header "WSL Configuration"
-    if grep -q '2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81' /etc/wsl.conf 2>/dev/null; then
-        print_row "IPv6 boot command" "${GREEN}✓ Present${NC}" "/etc/wsl.conf"
+    if grep -qE '^[[:space:]]*command[[:space:]]*=.*ip -6 addr' /etc/wsl.conf 2>/dev/null; then
+        print_row "IPv6 addr pin" "${RED}✗ Present${NC}" "blackholes under mirrored networking — remove it (see check_ipv6.sh)"
+        missing_items+=("wsl-ipv6-pin")
     else
-        print_row "IPv6 boot command" "${RED}✗ Missing${NC}" "/etc/wsl.conf"
-        missing_items+=("wsl-ipv6")
+        print_row "IPv6 addr pin" "${GREEN}✓ None${NC}" "no static pin to blackhole"
     fi
 fi
 
@@ -712,7 +714,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|wsl-ipv6|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;
@@ -745,6 +747,10 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         ssh-yubikey-relay)
             printf "\n  ${CYAN}# Provision/repair the Windows ssh-agent (YubiKey) relay${NC}\n"
             echo "  wsl_ssh_agent.sh"
+            ;;
+        wsl-ipv6-pin)
+            printf "\n  ${CYAN}# Remove the static IPv6 pin from /etc/wsl.conf, then: wsl.exe --shutdown${NC}\n"
+            echo "  sudo sed -i '/ip -6 addr/d' /etc/wsl.conf  # then reopen the shell"
             ;;
         claude-settings)
             printf "\n  ${CYAN}# Deploy Claude Code settings${NC}\n"

@@ -8,12 +8,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-06-11]
 
+### Added
+
+- `bin/bin/check_ipv6.sh`: IPv6 doctor — layer-by-layer diagnosis (interface, routing, ICMP, per-source probes, Windows-host probe, DNS, HTTPS, wsl.conf) for the "bun i hangs" symptom; every probe is timeout-bounded and each check self-guards its prerequisite tool/file (skips, never errors, when absent); the retired static pin is verdicted by *testing* the address, not assuming it's bad. Header carries a network change log (dated, with confidence levels)
+
 ### Changed
 - `bin/bin/wsl_ssh_agent.sh`: replace blind key recovery with an interactive prompt (recover/generate/skip) on fresh machines, invoke powershell directly to fix hidden stderr prompts, and display GitHub + test connection instructions for newly generated keys
 - `bin/bin/wsl_ssh_agent.sh`: add `-q`/`--quiet` option to silence success/info messages (prompts and errors remain visible)
 - `setup.sh`: invoke `wsl_ssh_agent.sh` with `-q` to avoid cluttering the output when the relay is already successfully configured
 - `setup.sh`: skip decryption and regeneration of `~/.ssh/id_ed25519` via `age` when `SSH_YUBIKEY=true` (since the YubiKey resident key is used instead)
 - `setup.sh`: make the `. ~/.bashrc` shell restart call-to-action contingent on actual changes (modifying `.bashrc`, or installing `rustup`, `fnm`, `dfxvm`, docker group, or a fresh YubiKey relay)
+- `setup.sh`: retire the bequiet wsl.conf `[boot]` static-IPv6 pin — under WSL mirrored networking that locally-added EUI-64 address blackholes (return traffic only forwards for mirrored addresses), hanging every dual-stack client (bun/npm); mirrored SLAAC addresses work unaided. Replaced the `WSL_BOOT` block with a do-not-reintroduce note
+- `bin/bin/validate_setup.sh`: WSL check inverted into a regression guard — an active `ip -6 addr` pin in wsl.conf is now flagged (was required); fix id `wsl-ipv6` → `wsl-ipv6-pin` with a targeted manual remedy (not setup.sh-fixable)
+
+### Fixed
+
+- bequiet IPv6 outage: removed the blackholing pinned address from the running interface and cleaned `/etc/wsl.conf` (merged duplicate `[boot]` sections, dropped the commented pin leftover) — `bun i` no longer hangs
 
 ## [2026-06-10]
 

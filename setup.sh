@@ -219,15 +219,11 @@ if [ "$current_remote" != "$DOTFILES_SSH_REMOTE" ]; then
     git -C "$DOTFILES_DIR" remote set-url origin "$DOTFILES_SSH_REMOTE"
 fi
 
-# --- WSL config (host-specific) ---
-if [ "$(hostname)" = "bequiet" ]; then
-    WSL_BOOT='[boot]
-command = "bash -c '"'"'ip -6 addr change 2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81/64 dev eth0 preferred_lft forever valid_lft forever; ip -6 addr del 2a02:16a:b205:1:3e6a:d2ff:fe7a:6a81/64 dev eth0 2>/dev/null; true'"'"'"'
-    if ! grep -q '2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81' /etc/wsl.conf 2>/dev/null; then
-        echo "Adding IPv6 boot command to /etc/wsl.conf..."
-        printf '\n%s\n' "$WSL_BOOT" | sudo tee -a /etc/wsl.conf >/dev/null
-    fi
-fi
+# NOTE: a wsl.conf [boot] command that pinned a static IPv6 address used to live here
+# (bequiet). Retired 2026-06-11: under WSL mirrored networking that locally-added address
+# blackholes (return traffic is only forwarded for addresses Windows mirrors in), which
+# hung every dual-stack client (bun/npm). Mirrored SLAAC addresses work on their own —
+# no pin needed. Diagnose with check_ipv6.sh; do not reintroduce a static-addr boot command.
 
 # --- System packages ---
 # (apt update only in -update mode to avoid slowdown; apt is fast enough without it for initial setup)
