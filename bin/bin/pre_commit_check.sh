@@ -42,7 +42,7 @@ fi
 if [ ${#warnings[@]} -gt 0 ]; then
     echo "=== Safety warnings ==="
     for w in "${warnings[@]}"; do
-        echo "  ⚠  $w"
+        echo "  ~  $w"
     done
     echo ""
 else

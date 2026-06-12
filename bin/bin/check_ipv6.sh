@@ -55,8 +55,8 @@ issues=0
 print_header() { echo ""; printf "${BOLD}%s${NC}\n" "$1"; }
 print_row()    { printf "  %-32s %b  %s\n" "$1" "$2" "$3"; }
 pass() { print_row "$1" "${GREEN}✓ $2${NC}" "${3:-}"; }
-warn() { print_row "$1" "${YELLOW}⚠ $2${NC}" "${3:-}"; issues=$((issues+1)); }
-fail() { print_row "$1" "${RED}✗ $2${NC}" "${3:-}"; issues=$((issues+1)); }
+warn() { print_row "$1" "${YELLOW}~ $2${NC}" "${3:-}"; issues=$((issues+1)); }
+fail() { print_row "$1" "${RED}x $2${NC}" "${3:-}"; issues=$((issues+1)); }
 skip() { print_row "$1" "${GRAY}– skipped${NC}" "${2:-}"; }            # missing prereq: not a fault
 
 have() { command -v "$1" >/dev/null 2>&1; }

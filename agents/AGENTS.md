@@ -9,6 +9,13 @@ Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific
 ## Patterns & Conventions
 
 - **Always use red/green TDD**: Write failing tests first, then implement the code to make them pass. Never write production code without a corresponding test written beforehand.
+- **No Emojis**: Do not use emojis in your text output unless explicitly requested by the user. If you need to indicate status, use unobtrusive textual symbols like `✓` (OK), `~` (WARN), and `x` (FAIL) to safe space. Colors are OK.
+
+## Tool & Security Preferences
+
+- **Node Ecosystem**: Always use `fnm` for Node version management and `pnpm` for package management.
+- **Dependency Security**: When using `pnpm`, restrict installation to packages that are at least 7 days old.
+- **Auditing**: Always run GitHub CI to audit the dependencies.
 
 ## Running commands (efficiency & safety)
 
@@ -42,7 +49,7 @@ The goal is a changelog that helps the *next session* pick up where this one lef
 When asked to prepare a commit, run pre-commit checks, or help get code ready to commit, follow the steps below. **Never run `git add` or `git commit` — the user commits manually.**
 
 1. **Run `pre_commit_check.sh`** — This utility lives in the user's `$PATH` (not inside the project). Run it with `pre_commit_check.sh` directly — do **not** check for it with `ls` or look for it inside the project directory. It performs the safety scan (secrets, debug remnants), documentation freshness check (CHANGELOG.md, CONTRIBUTING.md, README.md), and lists all changed files. Review its output and act on any warnings before proceeding.
-2. **Build, lint, test** — If the project has a build step, linter, or test suite, run them. Adapt to whatever tooling the project uses (`npm`, `cargo`, `pytest`, `go`, etc.). Report failures; do not proceed until they pass.
+2. **Build, lint, test, audit** — If the project has a build step, linter, or test suite, run them. For Node projects, always include `pnpm audit`. Adapt to whatever tooling the project uses (`npm`, `cargo`, `pytest`, `go`, etc.). Report failures; do not proceed until they pass.
 3. **Promote changelog entries** — Move completed entries from `[Unreleased]` into today's `[YYYY-MM-DD]` section — create it if absent, otherwise merge into the existing one by type (never add a second header for the same date). Leave any in-progress or unfinished items under `[Unreleased]`.
-4. **Commit message** — Based on the diff, suggest a short (under 72 chars) conventional commit message. If changes span multiple concerns, suggest splitting and provide a message for each.
+4. **Commit message** — Squashed commits are preferred. Based on the diff, suggest a single short (under 72 chars) conventional commit message. Keep it extremely brief and to the point. If changes span multiple distinct concerns, you may suggest splitting, but default to a single squashed commit.
 5. **Copy-paste commands** — Print the exact git commands the user can paste into the terminal. Use `git add` for new/modified files, `git mv` for renames, `git rm` for deletions, `git restore --staged` for files that should be excluded. End with `git commit -a -m "suggested commit message" && git push`. Format as a single fenced code block.

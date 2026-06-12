@@ -143,7 +143,7 @@ EOF
             echo -e "${GREEN}✓ Windows Terminal configured with Cascadia.${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠ Could not locate Windows Terminal settings. Please configure your terminal font manually.${NC}"
+        echo -e "${YELLOW}~ Could not locate Windows Terminal settings. Please configure your terminal font manually.${NC}"
     fi
 
     # 4. Check VS Code config
@@ -157,7 +157,7 @@ EOF
             echo -e "${GREEN}✓ VS Code (Windows) configured with FiraCode.${NC}"
         fi
     else
-        echo -e "${YELLOW}⚠ Could not locate VS Code settings. Please configure your editor font manually.${NC}"
+        echo -e "${YELLOW}~ Could not locate VS Code settings. Please configure your editor font manually.${NC}"
     fi
 
 else

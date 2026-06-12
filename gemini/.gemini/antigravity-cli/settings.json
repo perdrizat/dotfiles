@@ -19,6 +19,7 @@
       "command(pgrep)",
       "command(pnpm build)",
       "command(pnpm lint)",
+      "command(pnpm rebuild)",
       "command(pnpm test)",
       "command(pnpm test:e2e)",
       "command(pnpm test:fast)",

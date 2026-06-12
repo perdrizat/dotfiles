@@ -18,7 +18,7 @@ check_source() {
     if [ -f CONTRIBUTING.md ]; then
         printf "  %-20s ${GREEN}✓ Present${NC}\n" "CONTRIBUTING.md"
     else
-        printf "  %-20s ${RED}✗ Missing${NC}  — create it or run init_project.sh\n" "CONTRIBUTING.md"
+        printf "  %-20s ${RED}x Missing${NC}  — create it or run init_project.sh\n" "CONTRIBUTING.md"
         ((issues++))
     fi
 }
@@ -31,16 +31,16 @@ check_symlink() {
         if [ "$target" = "CONTRIBUTING.md" ]; then
             printf "  %-20s ${GREEN}✓ Linked${NC}  → CONTRIBUTING.md\n" "$name"
         else
-            printf "  %-20s ${YELLOW}⚠ Wrong target${NC}  → %s (expected CONTRIBUTING.md)\n" "$name" "$target"
+            printf "  %-20s ${YELLOW}~ Wrong target${NC}  → %s (expected CONTRIBUTING.md)\n" "$name" "$target"
             fix_commands+=("rm $name && ln -s CONTRIBUTING.md $name")
             ((issues++))
         fi
     elif [ -f "$name" ]; then
-        printf "  %-20s ${RED}✗ Regular file${NC}  — replace with symlink\n" "$name"
+        printf "  %-20s ${RED}x Regular file${NC}  — replace with symlink\n" "$name"
         fix_commands+=("rm $name && ln -s CONTRIBUTING.md $name")
         ((issues++))
     else
-        printf "  %-20s ${RED}✗ Missing${NC}\n" "$name"
+        printf "  %-20s ${RED}x Missing${NC}\n" "$name"
         fix_commands+=("ln -s CONTRIBUTING.md $name")
         ((issues++))
     fi
@@ -51,7 +51,7 @@ check_gitignore() {
     if [ -f .gitignore ] && grep -qxF "$name" .gitignore; then
         return
     fi
-    printf "  %-20s ${RED}✗ Not in .gitignore${NC}\n" "$name"
+    printf "  %-20s ${RED}x Not in .gitignore${NC}\n" "$name"
     fix_commands+=("echo '$name' >> .gitignore")
     ((issues++))
 }

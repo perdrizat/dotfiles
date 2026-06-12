@@ -8,8 +8,8 @@ These intentionally override the [global agent instructions](agents/AGENTS.md) f
 
 - **No Red-Green TDD** — implement directly; do not write a failing test first.
 - **No new test scripts** — do not author `test_*.sh` (or equivalent) for changes here.
-- **Commit style** — squashed commits are preferred. Never propose long commit messages; keep them extremely brief and to the point.
 - **Link-safe file updates** — in a stow-managed home, files may be symlinks or have hardlinks. When rewriting a file's content, never replace its inode: no `mv tmp-file target` and no `sed -i` (both rename a temp file over the target, detaching hardlinks and clobbering a symlinked target into a regular file). Compute the new content in memory and write it back with a plain redirect (`> target`), which writes *through* links. Exceptions: true relocations between directories, and atomic publishes of never-linked files with concurrent readers (e.g. the `agy_status.sh` cache) — there `tmp+mv` is deliberate.
+- **Local Tools** — all tools in `bin/bin` are in the local `$PATH`. When invoking them, call them directly by name (e.g., `validate_setup.sh` instead of `./bin/bin/validate_setup.sh`).
 
 All other global rules (e.g. updating `CHANGELOG.md`, the commit-prep workflow) still apply. The repo carries no `test_*.sh` scripts.
 

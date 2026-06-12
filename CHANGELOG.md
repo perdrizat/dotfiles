@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-12]
+
+### Added
+
+- `agents/AGENTS.md`: Added rule forbidding emojis in text output (use unobtrusive text symbols like `✓`, `~`, `x` instead)
+- `agents/AGENTS.md`: Added `pnpm audit` step to commit preparation for Node projects
+- `agents/AGENTS.md`: Added global preference for single squashed commits with extremely brief commit messages
+
+### Changed
+
+- `validate_setup.sh`: Config validation now prints exact untracked/missing settings keys as a diff (+/- list) instead of just counts
+- `bin/bin/*`: Replaced emojis (`⚠`, `✗`) with unobtrusive text symbols (`~`, `x`) in validation script outputs
+- `CONTRIBUTING.md`: Replaced local squashed commit rule (now global) with a rule to invoke local `bin/bin` tools directly
 ## [2026-06-11]
 
 ### Added

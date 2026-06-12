@@ -42,14 +42,14 @@ check_symlink() {
         if [ "$actual" = "$expected" ]; then
             print_row "$label" "${GREEN}✓ Linked${NC}" "→ ${expected_target#"$HOME"/}"
         else
-            print_row "$label" "${YELLOW}⚠ Wrong target${NC}" "→ $actual"
+            print_row "$label" "${YELLOW}~ Wrong target${NC}" "→ $actual"
             missing_items+=("$fix_id")
         fi
     elif [ -e "$link" ]; then
-        print_row "$label" "${YELLOW}⚠ Not a symlink${NC}" "$link is a regular file"
+        print_row "$label" "${YELLOW}~ Not a symlink${NC}" "$link is a regular file"
         missing_items+=("$fix_id")
     else
-        print_row "$label" "${RED}✗ Missing${NC}" "$link"
+        print_row "$label" "${RED}x Missing${NC}" "$link"
         missing_items+=("$fix_id")
     fi
 }
@@ -62,7 +62,7 @@ check_perms() {
         if [ "$actual" = "$expected" ]; then
             print_row "$label" "${GREEN}✓ $actual${NC}" ""
         else
-            print_row "$label" "${YELLOW}⚠ $actual${NC}" "expected $expected"
+            print_row "$label" "${YELLOW}~ $actual${NC}" "expected $expected"
             missing_items+=("$fix_id")
         fi
     fi
@@ -126,7 +126,7 @@ for cmd in "${PREREQS[@]}"; do
         ver=$(dpkg -s "$cmd" 2>/dev/null | grep '^Version:' | cut -d' ' -f2 || echo "installed")
         print_row "$cmd" "${GREEN}✓ Installed${NC}" "$ver"
     else
-        print_row "$cmd" "${RED}✗ Missing${NC}" ""
+        print_row "$cmd" "${RED}x Missing${NC}" ""
         missing_items+=("prereq-$cmd")
     fi
 done
@@ -142,13 +142,13 @@ if [ -d "$DOTFILES_DIR/.git" ]; then
     if [ -n "$remote_head" ] && [ "$local_head" != "$remote_head" ]; then
         behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "?")
         ahead=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
-        print_row "dotfiles repo" "${YELLOW}⚠ Out of sync${NC}" "${behind} behind, ${ahead} ahead"
+        print_row "dotfiles repo" "${YELLOW}~ Out of sync${NC}" "${behind} behind, ${ahead} ahead"
         missing_items+=("dotfiles-sync")
     else
         print_row "dotfiles repo" "${GREEN}✓ Up to date${NC}" "~/dotfiles"
     fi
 else
-    print_row "dotfiles repo" "${RED}✗ Missing${NC}" "~/dotfiles"
+    print_row "dotfiles repo" "${RED}x Missing${NC}" "~/dotfiles"
     missing_items+=("dotfiles-clone")
 fi
 
@@ -158,7 +158,7 @@ if [ -d "$DOTFILES_DIR/.git" ]; then
     if [ "$current_remote" = "$DOTFILES_SSH_REMOTE" ]; then
         print_row "Remote URL" "${GREEN}✓ SSH${NC}" "$current_remote"
     else
-        print_row "Remote URL" "${YELLOW}⚠ Not SSH${NC}" "$current_remote"
+        print_row "Remote URL" "${YELLOW}~ Not SSH${NC}" "$current_remote"
         missing_items+=("dotfiles-ssh-remote")
     fi
 fi
@@ -172,7 +172,7 @@ if command -v pro >/dev/null 2>&1; then
     if [ "$apt_news" = "false" ]; then
         print_row "Pro apt_news" "${GREEN}✓ Disabled${NC}" ""
     else
-        print_row "Pro apt_news" "${YELLOW}⚠ Enabled${NC}" "apt advertisements shown"
+        print_row "Pro apt_news" "${YELLOW}~ Enabled${NC}" "apt advertisements shown"
         missing_items+=("pro-apt-news")
     fi
 
@@ -185,7 +185,7 @@ if command -v pro >/dev/null 2>&1; then
     if [ "$masked_count" -eq 2 ]; then
         print_row "apt-news / esm-cache" "${GREEN}✓ Masked${NC}" ""
     else
-        print_row "apt-news / esm-cache" "${YELLOW}⚠ Not masked${NC}" "may run during apt operations"
+        print_row "apt-news / esm-cache" "${YELLOW}~ Not masked${NC}" "may run during apt operations"
         missing_items+=("pro-mask-services")
     fi
 fi
@@ -196,7 +196,7 @@ print_header "Shell Configuration"
 if grep -q "Custom Dotfiles Loader" "$HOME/.bashrc" 2>/dev/null; then
     print_row ".bashrc loader" "${GREEN}✓ Present${NC}" "Custom Dotfiles Loader"
 else
-    print_row ".bashrc loader" "${RED}✗ Missing${NC}" "Loader block not in ~/.bashrc"
+    print_row ".bashrc loader" "${RED}x Missing${NC}" "Loader block not in ~/.bashrc"
     missing_items+=("bashrc-loader")
 fi
 
@@ -216,7 +216,7 @@ if [ -f "$TEMPLATE_FILE" ] && [ -f "$CONFIG_FILE" ]; then
     if [ ${#conf_missing_keys[@]} -eq 0 ]; then
         print_row ".setup.conf" "${GREEN}✓ Up to date${NC}" "all template keys present"
     else
-        print_row ".setup.conf" "${YELLOW}⚠ Missing keys${NC}" "${conf_missing_keys[*]}"
+        print_row ".setup.conf" "${YELLOW}~ Missing keys${NC}" "${conf_missing_keys[*]}"
         for k in "${conf_missing_keys[@]}"; do missing_items+=("conf-key-$k"); done
     fi
 fi
@@ -277,7 +277,7 @@ for script in "$HOME"/bin/*.sh; do
     if [ -x "$script" ]; then
         print_row "$name" "${GREEN}✓ Executable${NC}" ""
     else
-        print_row "$name" "${YELLOW}⚠ Not executable${NC}" ""
+        print_row "$name" "${YELLOW}~ Not executable${NC}" ""
         missing_items+=("bin-exec")
     fi
 done
@@ -296,7 +296,7 @@ print_header "Claude Code Configuration"
 if [ -L "$HOME/.claude/settings.json" ]; then
     # Symlink detected — settings should be a copy, not a symlink
     target=$(readlink "$HOME/.claude/settings.json")
-    print_row ".claude/settings.json" "${YELLOW}⚠ Is a symlink${NC}" "→ $target (should be a copy)"
+    print_row ".claude/settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("claude-settings-symlink")
 elif [ -f "$HOME/.claude/settings.json" ]; then
     # Check for required top-level keys (except model, which is user-configurable)
@@ -313,25 +313,25 @@ elif [ -f "$HOME/.claude/settings.json" ]; then
     if [ ${#missing_keys[@]} -eq 0 ]; then
         print_row ".claude/settings.json" "${GREEN}✓ Complete${NC}" "all required keys present"
     else
-        print_row ".claude/settings.json" "${YELLOW}⚠ Missing keys${NC}" "${missing_keys[*]}"
+        print_row ".claude/settings.json" "${YELLOW}~ Missing keys${NC}" "${missing_keys[*]}"
         missing_items+=("claude-settings")
     fi
 
     # Check for untracked permissions
-    untracked_perms=$(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | length' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
-    if [ "${untracked_perms:-0}" -gt 0 ]; then
-        print_row ".claude/settings.json" "${YELLOW}⚠ Untracked allows${NC}" "$untracked_perms local commands not in template"
+    untracked_cmds=$(jq -r -s '([.[0].permissions.allow[]?] - [.[1].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
+    if [ -n "$untracked_cmds" ]; then
+        print_row ".claude/settings.json" "${YELLOW}~ Untracked allows${NC}" "+ $untracked_cmds"
         missing_items+=("claude-untracked-allows")
     fi
 
     # Check the reverse: template allows missing locally (forward-sync gap)
-    behind_perms=$(jq -r -s '[.[1].permissions.allow[]?] - [.[0].permissions.allow[]?] | length' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
-    if [ "${behind_perms:-0}" -gt 0 ]; then
-        print_row ".claude/settings.json" "${YELLOW}⚠ Behind template${NC}" "$behind_perms template allows missing locally"
+    behind_cmds=$(jq -r -s '([.[1].permissions.allow[]?] - [.[0].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
+    if [ -n "$behind_cmds" ]; then
+        print_row ".claude/settings.json" "${YELLOW}~ Behind template${NC}" "- $behind_cmds"
         missing_items+=("claude-template-allows")
     fi
 else
-    print_row ".claude/settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create from template"
+    print_row ".claude/settings.json" "${RED}x Missing${NC}" "run setup.sh to create from template"
     missing_items+=("claude-settings")
 fi
 
@@ -341,11 +341,11 @@ print_header "Antigravity Configuration"
 AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
 if [ -L "$HOME/.gemini/antigravity-cli" ]; then
     # Folded stow symlink: agy writes runtime state (settings, oauth token, logs) into the repo
-    print_row "agy config dir" "${RED}✗ Stow symlink${NC}" "agy writes into the repo — run setup.sh to unfold"
+    print_row "agy config dir" "${RED}x Stow symlink${NC}" "agy writes into the repo — run setup.sh to unfold"
     missing_items+=("agy-settings")
 elif [ -L "$AGY_SETTINGS" ]; then
     target=$(readlink "$AGY_SETTINGS")
-    print_row "agy settings.json" "${YELLOW}⚠ Is a symlink${NC}" "→ $target (should be a copy)"
+    print_row "agy settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("agy-settings-symlink")
 elif [ -f "$AGY_SETTINGS" ]; then
     required_keys=("permissions" "statusLine" "hooks" "title")
@@ -360,25 +360,25 @@ elif [ -f "$AGY_SETTINGS" ]; then
     if [ ${#missing_keys[@]} -eq 0 ]; then
         print_row "agy settings.json" "${GREEN}✓ Complete${NC}" "all required keys present"
     else
-        print_row "agy settings.json" "${YELLOW}⚠ Missing keys${NC}" "${missing_keys[*]}"
+        print_row "agy settings.json" "${YELLOW}~ Missing keys${NC}" "${missing_keys[*]}"
         missing_items+=("agy-settings")
     fi
 
     # Check for untracked permissions
-    untracked_perms=$(jq -r -s '[.[0].permissions.allow[]?] - [.[1].permissions.allow[]?] | length' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
-    if [ "${untracked_perms:-0}" -gt 0 ]; then
-        print_row "agy settings.json" "${YELLOW}⚠ Untracked allows${NC}" "$untracked_perms local commands not in template"
+    untracked_cmds=$(jq -r -s '([.[0].permissions.allow[]?] - [.[1].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
+    if [ -n "$untracked_cmds" ]; then
+        print_row "agy settings.json" "${YELLOW}~ Untracked allows${NC}" "+ $untracked_cmds"
         missing_items+=("agy-untracked-allows")
     fi
 
     # Check the reverse: template allows missing locally (forward-sync gap)
-    behind_perms=$(jq -r -s '[.[1].permissions.allow[]?] - [.[0].permissions.allow[]?] | length' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
-    if [ "${behind_perms:-0}" -gt 0 ]; then
-        print_row "agy settings.json" "${YELLOW}⚠ Behind template${NC}" "$behind_perms template allows missing locally"
+    behind_cmds=$(jq -r -s '([.[1].permissions.allow[]?] - [.[0].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
+    if [ -n "$behind_cmds" ]; then
+        print_row "agy settings.json" "${YELLOW}~ Behind template${NC}" "- $behind_cmds"
         missing_items+=("agy-template-allows")
     fi
 else
-    print_row "agy settings.json" "${RED}✗ Missing${NC}" "run setup.sh to create/merge from template"
+    print_row "agy settings.json" "${RED}x Missing${NC}" "run setup.sh to create/merge from template"
     missing_items+=("agy-settings")
 fi
 
@@ -388,10 +388,10 @@ print_header "SSH"
 if [ -f "$HOME/.ssh/id_ed25519" ]; then
     print_row "SSH private key" "${GREEN}✓ Decrypted${NC}" "~/.ssh/id_ed25519"
 elif [ -f "$HOME/.ssh/id_ed25519.age" ]; then
-    print_row "SSH private key" "${YELLOW}⚠ Encrypted${NC}" "Needs age decryption"
+    print_row "SSH private key" "${YELLOW}~ Encrypted${NC}" "Needs age decryption"
     missing_items+=("ssh-decrypt")
 else
-    print_row "SSH private key" "${RED}✗ Missing${NC}" "No key or .age file"
+    print_row "SSH private key" "${RED}x Missing${NC}" "No key or .age file"
 fi
 
 # Verify .age file matches the repo copy (same encrypted key on all machines)
@@ -401,7 +401,7 @@ if [ -f "$HOME/.ssh/id_ed25519.age" ] && [ -f "$DOTFILES_DIR/ssh/.ssh/id_ed25519
     if [ "$deployed_sum" = "$repo_sum" ]; then
         print_row ".age matches repo" "${GREEN}✓ Match${NC}" "${deployed_sum:0:12}…"
     else
-        print_row ".age matches repo" "${RED}✗ Mismatch${NC}" "Deployed .age differs from repo"
+        print_row ".age matches repo" "${RED}x Mismatch${NC}" "Deployed .age differs from repo"
         missing_items+=("stow-ssh")
     fi
 fi
@@ -413,11 +413,11 @@ if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
     if [ "$priv_pub" = "$disk_pub" ]; then
         print_row "Public key matches private" "${GREEN}✓ Match${NC}" ""
     else
-        print_row "Public key matches private" "${RED}✗ Mismatch${NC}" "Regenerate with ssh-keygen -y"
+        print_row "Public key matches private" "${RED}x Mismatch${NC}" "Regenerate with ssh-keygen -y"
         missing_items+=("ssh-regen-pub")
     fi
 elif [ -f "$HOME/.ssh/id_ed25519" ] && [ ! -f "$HOME/.ssh/id_ed25519.pub" ]; then
-    print_row "Public key" "${YELLOW}⚠ Missing${NC}" "Regenerate from private key"
+    print_row "Public key" "${YELLOW}~ Missing${NC}" "Regenerate from private key"
     missing_items+=("ssh-regen-pub")
 fi
 
@@ -435,7 +435,7 @@ if [[ "$SSH_YUBIKEY" == true ]]; then
     if command -v socat >/dev/null 2>&1; then
         print_row "socat" "${GREEN}✓ Installed${NC}" ""
     else
-        print_row "socat" "${RED}✗ Missing${NC}" ""
+        print_row "socat" "${RED}x Missing${NC}" ""
         missing_items+=("ssh-yubikey-relay")
     fi
 
@@ -445,7 +445,7 @@ if [[ "$SSH_YUBIKEY" == true ]]; then
     if [ -n "$npiperelay_path" ] && [ -e "$npiperelay_path" ]; then
         print_row "npiperelay.exe" "${GREEN}✓ Present${NC}" "${npiperelay_path}"
     else
-        print_row "npiperelay.exe" "${RED}✗ Missing${NC}" "not provisioned (no env file or binary)"
+        print_row "npiperelay.exe" "${RED}x Missing${NC}" "not provisioned (no env file or binary)"
         missing_items+=("ssh-yubikey-relay")
     fi
 
@@ -453,7 +453,7 @@ if [[ "$SSH_YUBIKEY" == true ]]; then
     if [ -S "${SSH_AUTH_SOCK:-}" ] && ssh-add -l 2>/dev/null | grep -q 'ED25519-SK\|ECDSA-SK'; then
         print_row "Agent relay" "${GREEN}✓ Live${NC}" "sk key reachable via SSH_AUTH_SOCK"
     else
-        print_row "Agent relay" "${RED}✗ Down${NC}" "no sk key via SSH_AUTH_SOCK"
+        print_row "Agent relay" "${RED}x Down${NC}" "no sk key via SSH_AUTH_SOCK"
         missing_items+=("ssh-yubikey-relay")
     fi
 fi
@@ -464,7 +464,7 @@ fi
 if grep -qi microsoft /proc/version 2>/dev/null; then
     print_header "WSL Configuration"
     if grep -qE '^[[:space:]]*command[[:space:]]*=.*ip -6 addr' /etc/wsl.conf 2>/dev/null; then
-        print_row "IPv6 addr pin" "${RED}✗ Present${NC}" "blackholes under mirrored networking — remove it (see check_ipv6.sh)"
+        print_row "IPv6 addr pin" "${RED}x Present${NC}" "blackholes under mirrored networking — remove it (see check_ipv6.sh)"
         missing_items+=("wsl-ipv6-pin")
     else
         print_row "IPv6 addr pin" "${GREEN}✓ None${NC}" "no static pin to blackhole"
@@ -479,7 +479,7 @@ git_email=$(git config --global user.email 2>/dev/null || echo "")
 if [ -n "$git_user" ] && [ -n "$git_email" ]; then
     print_row "User identity" "${GREEN}✓ Set${NC}" "$git_user <$git_email>"
 else
-    print_row "User identity" "${YELLOW}⚠ Incomplete${NC}" "name='$git_user' email='$git_email'"
+    print_row "User identity" "${YELLOW}~ Incomplete${NC}" "name='$git_user' email='$git_email'"
 fi
 
 # --- APT Packages ---
@@ -490,7 +490,7 @@ for pkg in "${APT_PACKAGES[@]}"; do
         ver=$(dpkg -s "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
         print_row "$pkg" "${GREEN}✓ Installed${NC}" "$ver"
     else
-        print_row "$pkg" "${RED}✗ Missing${NC}" ""
+        print_row "$pkg" "${RED}x Missing${NC}" ""
         missing_items+=("apt-$pkg")
     fi
 done
@@ -503,7 +503,7 @@ if [ -n "$MORE_APT_PACKAGES" ]; then
             ver=$(dpkg -s "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
             print_row "$pkg (local)" "${GREEN}✓ Installed${NC}" "$ver"
         else
-            print_row "$pkg (local)" "${RED}✗ Missing${NC}" ""
+            print_row "$pkg (local)" "${RED}x Missing${NC}" ""
             missing_items+=("apt-$pkg")
         fi
     done
@@ -514,7 +514,7 @@ if dpkg -s glow >/dev/null 2>&1; then
     ver=$(dpkg -s glow 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
     print_row "glow (charm)" "${GREEN}✓ Installed${NC}" "$ver"
 else
-    print_row "glow (charm)" "${RED}✗ Missing${NC}" ""
+    print_row "glow (charm)" "${RED}x Missing${NC}" ""
     missing_items+=("install-glow")
 fi
 
@@ -523,7 +523,7 @@ if dpkg -s gh >/dev/null 2>&1; then
     ver=$(dpkg -s gh 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
     print_row "gh (github cli)" "${GREEN}✓ Installed${NC}" "$ver"
 else
-    print_row "gh (github cli)" "${RED}✗ Missing${NC}" ""
+    print_row "gh (github cli)" "${RED}x Missing${NC}" ""
     missing_items+=("install-gh")
 fi
 
@@ -535,7 +535,7 @@ if [[ "$INSTALL_RUST" == true ]]; then
         rust_ver=$(rustc --version 2>/dev/null | cut -d' ' -f2)
         print_row "Rust (rustup)" "${GREEN}✓ Installed${NC}" "$rust_ver"
     else
-        print_row "Rust (rustup)" "${RED}✗ Missing${NC}" ""
+        print_row "Rust (rustup)" "${RED}x Missing${NC}" ""
         missing_items+=("install-rust")
     fi
 fi
@@ -546,33 +546,33 @@ if [[ "$INSTALL_NODE" == true ]]; then
     if command -v fnm >/dev/null 2>&1; then
         print_row "fnm" "${GREEN}✓ Installed${NC}" "$(fnm --version 2>/dev/null)"
     else
-        print_row "fnm" "${RED}✗ Missing${NC}" ""
+        print_row "fnm" "${RED}x Missing${NC}" ""
         missing_items+=("install-fnm")
     fi
     # Node and npm both come from fnm — must be present and runnable
     if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
         print_row "Node" "${GREEN}✓ Installed${NC}" "$(node --version 2>/dev/null)"
     else
-        print_row "Node" "${RED}✗ Missing${NC}" "no active Node version"
+        print_row "Node" "${RED}x Missing${NC}" "no active Node version"
         missing_items+=("install-node")
     fi
     if command -v npm >/dev/null 2>&1 && npm --version >/dev/null 2>&1; then
         print_row "npm" "${GREEN}✓ Installed${NC}" "$(npm --version 2>/dev/null)"
     else
-        print_row "npm" "${RED}✗ Missing${NC}" ""
+        print_row "npm" "${RED}x Missing${NC}" ""
         missing_items+=("install-node")
     fi
     if command -v vite >/dev/null 2>&1; then
         vite_ver=$(vite --version 2>/dev/null | tail -1)
         print_row "vite" "${GREEN}✓ Installed${NC}" "$vite_ver"
     else
-        print_row "vite" "${RED}✗ Missing${NC}" ""
+        print_row "vite" "${RED}x Missing${NC}" ""
         missing_items+=("install-vite")
     fi
     if command -v pnpm >/dev/null 2>&1 && pnpm --version >/dev/null 2>&1; then
         print_row "pnpm" "${GREEN}✓ Installed${NC}" "$(pnpm --version 2>/dev/null)"
     else
-        print_row "pnpm" "${RED}✗ Missing${NC}" ""
+        print_row "pnpm" "${RED}x Missing${NC}" ""
         missing_items+=("install-pnpm")
     fi
 fi
@@ -582,13 +582,13 @@ if [[ "$INSTALL_ICP" == true ]]; then
         dfx_ver=$(dfx --version 2>/dev/null || echo "unknown")
         print_row "dfx (dfxvm)" "${GREEN}✓ Installed${NC}" "$dfx_ver"
     else
-        print_row "dfx (dfxvm)" "${RED}✗ Missing${NC}" ""
+        print_row "dfx (dfxvm)" "${RED}x Missing${NC}" ""
         missing_items+=("install-icp")
     fi
     if command -v ic-admin >/dev/null 2>&1; then
         print_row "ic-admin" "${GREEN}✓ Installed${NC}" ""
     else
-        print_row "ic-admin" "${RED}✗ Missing${NC}" ""
+        print_row "ic-admin" "${RED}x Missing${NC}" ""
         missing_items+=("install-ic-admin")
     fi
 fi
@@ -598,7 +598,7 @@ if [[ "$INSTALL_PYTHON" == true ]]; then
         py_ver=$(python3 --version 2>/dev/null | cut -d' ' -f2)
         print_row "Python + pip + venv" "${GREEN}✓ Installed${NC}" "$py_ver"
     else
-        print_row "Python + pip + venv" "${RED}✗ Missing${NC}" ""
+        print_row "Python + pip + venv" "${RED}x Missing${NC}" ""
         missing_items+=("install-python")
     fi
 fi
@@ -609,14 +609,14 @@ if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
         ver=$(dpkg -s firefox 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
         print_row "Firefox (latest)" "${GREEN}✓ Installed${NC}" "$ver"
     else
-        print_row "Firefox (latest)" "${RED}✗ Missing${NC}" ""
+        print_row "Firefox (latest)" "${RED}x Missing${NC}" ""
         missing_items+=("install-ff")
     fi
     if dpkg -s firefox-esr >/dev/null 2>&1; then
         ver=$(dpkg -s firefox-esr 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
         print_row "Firefox ESR" "${GREEN}✓ Installed${NC}" "$ver"
     else
-        print_row "Firefox ESR" "${RED}✗ Missing${NC}" ""
+        print_row "Firefox ESR" "${RED}x Missing${NC}" ""
         missing_items+=("install-ffesr")
     fi
 fi
@@ -626,13 +626,13 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
         dc_ver=$(dpkg -s docker-compose-v2 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
         print_row "Docker Compose" "${GREEN}✓ Installed${NC}" "$dc_ver"
     else
-        print_row "Docker Compose" "${RED}✗ Missing${NC}" ""
+        print_row "Docker Compose" "${RED}x Missing${NC}" ""
         missing_items+=("install-docker")
     fi
     if id -nG "$USER" | grep -qw docker; then
         print_row "docker group" "${GREEN}✓ Member${NC}" "$USER"
     else
-        print_row "docker group" "${RED}✗ Not a member${NC}" "$USER"
+        print_row "docker group" "${RED}x Not a member${NC}" "$USER"
         missing_items+=("docker-group")
     fi
 fi
@@ -647,7 +647,7 @@ if [[ "$INSTALL_CLAUDE" == true ]]; then
         claude_ver=$(claude --version 2>/dev/null || echo "unknown")
         print_row "Claude Code CLI" "${GREEN}✓ Installed${NC}" "$claude_ver"
     else
-        print_row "Claude Code CLI" "${RED}✗ Missing${NC}" ""
+        print_row "Claude Code CLI" "${RED}x Missing${NC}" ""
         missing_items+=("claude-cli")
     fi
 fi
@@ -657,7 +657,7 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
         agy_ver=$(agy --version 2>/dev/null || echo "unknown")
         print_row "Antigravity CLI" "${GREEN}✓ Installed${NC}" "$agy_ver"
     else
-        print_row "Antigravity CLI" "${RED}✗ Missing${NC}" ""
+        print_row "Antigravity CLI" "${RED}x Missing${NC}" ""
         missing_items+=("antigravity-cli")
     fi
 fi
@@ -669,7 +669,7 @@ command -v gemini >/dev/null 2>&1 && gemini_leftover=true
 grep -q '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE" 2>/dev/null && gemini_leftover=true
 if $gemini_leftover; then
     [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]] || print_header "LLM Agents"
-    print_row "Gemini CLI" "${YELLOW}⚠ Retired${NC}" "migrate INSTALL_GEMINI_CLI → INSTALL_ANTIGRAVITY"
+    print_row "Gemini CLI" "${YELLOW}~ Retired${NC}" "migrate INSTALL_GEMINI_CLI → INSTALL_ANTIGRAVITY"
     missing_items+=("gemini-migrate")
 fi
 
