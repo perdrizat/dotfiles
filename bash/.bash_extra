@@ -31,7 +31,8 @@ fi
 if [ -n "${WSL_DISTRO_NAME:-}" ] && [ -f "$HOME/.config/dotfiles/ssh_agent.env" ]; then
     . "$HOME/.config/dotfiles/ssh_agent.env"   # sets NPIPERELAY, exports SSH_AUTH_SOCK
     if [ -n "${NPIPERELAY:-}" ] && [ -x "$NPIPERELAY" ] && command -v socat >/dev/null 2>&1; then
-        if ! ss -ax 2>/dev/null | grep -q "$SSH_AUTH_SOCK"; then
+        if [ ! -S "$SSH_AUTH_SOCK" ] || ! pgrep -f "socat.*$SSH_AUTH_SOCK" >/dev/null; then
+            pkill -f "socat.*$SSH_AUTH_SOCK" 2>/dev/null
             rm -f "$SSH_AUTH_SOCK"
             (setsid socat UNIX-LISTEN:"$SSH_AUTH_SOCK",fork \
                 EXEC:"$NPIPERELAY -ei -s //./pipe/openssh-ssh-agent",nofork & ) >/dev/null 2>&1

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-13]
+
+### Fixed
+
+- `bash/.bash_extra`: fix WSL ghost socket bug preventing `socat` restart by checking socket file existence and active process
+
 ## [2026-06-12]
 
 ### Added
