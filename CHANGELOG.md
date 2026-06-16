@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-16]
+
+### Changed
+
+- `agents/AGENTS.md`: commit-prep rule now mandates a single squashed commit and never splitting — removes the "you may suggest splitting" escape hatch that caused an over-split commit proposal
+
+### Fixed
+
+- `bin/bin/install_nerd_fonts.sh`: register per-user Windows fonts with their FULL PATH (was a bare filename) — `%LOCALAPPDATA%\…\Fonts` isn't on the font search path, so bare-filename HKCU entries loaded only for the live session and were dropped at the next logon (the "font vanishes after reboot" bug); self-heals existing bare-filename entries
+- `bin/bin/install_nerd_fonts.sh`: fix idempotency — the install guard matched the registry full-path value (was grepping `"CaskaydiaCove Nerd Font"`, but the GDI registry name is the abbreviated `"CaskaydiaCove NF"`, so it re-downloaded every run); download guard now matches the real `CaskaydiaCove*`/`FiraCode*` files instead of the `CascadiaCode` archive name
+- `bin/bin/install_nerd_fonts.sh`: header documents the CascadiaCode-archive vs CaskaydiaCove-family naming (OFL Reserved Font Name) and the dual DirectWrite name (`CaskaydiaCove Nerd Font`, used by Windows Terminal/VS Code) vs GDI alias (`CaskaydiaCove NF`, shown only by GDI/GDI+ tools)
+
 ## [2026-06-13]
 
 ### Fixed

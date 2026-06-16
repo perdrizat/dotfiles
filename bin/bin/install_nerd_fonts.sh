@@ -1,7 +1,27 @@
 #!/bin/bash
-# install_nerd_fonts.sh — Install Cascadia and FiraCode Nerd Fonts
-# Detects WSL vs native Linux to install properly and prompts to configure apps.
-# Automatically fixes corrupted Windows registry font entries using internal font metadata.
+# install_nerd_fonts.sh — Install Cascadia (CaskaydiaCove) and FiraCode Nerd Fonts
+# Detects WSL vs native Linux; on WSL it installs into the Windows host per-user.
+#
+# Naming note (this confused us before):
+#   • Archive name : CascadiaCode.zip   (named after Microsoft's "Cascadia Code")
+#   • The font carries TWO family names. DirectWrite apps (Windows Terminal, VS Code) use the
+#     full typographic name "CaskaydiaCove Nerd Font" (Mono variant: "… Mono", Propo: "… Propo")
+#     — that is what to put in their config. Legacy GDI / GDI+ tools (and PowerShell's
+#     System.Drawing / WPF SystemFontFamilies enumerations) instead show the abbreviated GDI
+#     name "CaskaydiaCove NF"/"NFM"/"NFP" (Windows' 32-char GDI name limit truncates "Nerd
+#     Font"→"NF"). Same font, two names; don't be fooled by a GDI enumeration into thinking the
+#     full name is missing — WT's own font picker lists "CaskaydiaCove Nerd Font". FiraCode's
+#     base name is short enough to keep the full name in both tables.
+#   • The patched font is renamed (Cascadia→Caskaydia, Code→Cove) because Cascadia Code ships
+#     under a Reserved Font Name (OFL) that forbids redistributing a modified copy as-is.
+#
+# Reliability note (why fonts used to vanish after a reboot):
+#   Per-user fonts live in %LOCALAPPDATA%\Microsoft\Windows\Fonts, which is NOT on the font
+#   search path. The HKCU registry value MUST therefore be the FULL ABSOLUTE PATH to the
+#   .ttf — a bare filename loads only for the live session (AddFontResource is session-only)
+#   and is dropped at the next logon. Refs: oh-my-posh#4169, scoop-nerd-fonts manifest,
+#   MS "Font Installation and Deletion". This script writes the full path and self-heals
+#   any old bare-filename entries.
 
 set -e
 
@@ -22,64 +42,74 @@ if $IS_WSL; then
     echo "Detected WSL environment. Checking Windows host fonts..."
     WIN_LOCALAPPDATA=$(cmd.exe /c "echo %LOCALAPPDATA%" 2>/dev/null | tr -d '\r')
     WSL_LOCALAPPDATA=$(wslpath -u "$WIN_LOCALAPPDATA")
-    
+
     WIN_APPDATA=$(cmd.exe /c "echo %APPDATA%" 2>/dev/null | tr -d '\r')
     WSL_APPDATA=$(wslpath -u "$WIN_APPDATA")
-    
+
     WIN_FONTS_DIR="$WSL_LOCALAPPDATA/Microsoft/Windows/Fonts"
     WT_SETTINGS="$WSL_LOCALAPPDATA/Packages/Microsoft.WindowsTerminal_8wekyb3d8bbwe/LocalState/settings.json"
     VSCODE_SETTINGS="$WSL_APPDATA/Code/User/settings.json"
+    REG_FONTS='HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts'
 
-    # Define PowerShell payload to download and cleanly register fonts using internal metadata
+    # PowerShell payload: download (only if the real patched files are missing), copy into the
+    # per-user Fonts dir, and register each face with the FULL PATH as the value — overwriting
+    # any stale bare-filename entry in place. Loads into the live session only when something
+    # actually changed, so repeat runs are silent no-ops.
     cat << 'EOF' > /tmp/install_fonts.ps1
-param([string]$FontUrl, [string]$ZipName)
+param([string]$FontUrl, [string]$ZipName, [string]$FilePattern)
+$ErrorActionPreference = "Stop"
 
 $out = "$env:TEMP\$ZipName.zip"
 $extractPath = "$env:TEMP\$ZipName"
 $fontDir = "$env:LOCALAPPDATA\Microsoft\Windows\Fonts"
 $regPath = "HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
 
-# Only download if we don't have the files
-if (-not (Test-Path $fontDir\*$ZipName*)) {
-    Write-Host "Downloading $ZipName..."
+New-Item -ItemType Directory -Force -Path $fontDir | Out-Null
+
+# Download + extract only when the patched files are absent. Match the REAL file names
+# (CaskaydiaCove*/FiraCode*), not the archive name, so this guard actually fires.
+if (-not (Test-Path (Join-Path $fontDir $FilePattern))) {
+    Write-Host "  Downloading $ZipName.zip ..."
     Invoke-WebRequest -Uri $FontUrl -OutFile $out
     Expand-Archive $out -DestinationPath $extractPath -Force
-} else {
-    Write-Host "Files exist, repairing registry metadata..."
-    $extractPath = $fontDir
+    Get-ChildItem "$extractPath\*.ttf" | ForEach-Object {
+        Copy-Item $_.FullName -Destination (Join-Path $fontDir $_.Name) -Force
+    }
 }
 
-New-Item -ItemType Directory -Force -Path $fontDir | Out-Null
 Add-Type -AssemblyName PresentationCore
+$changed = 0
 
-Get-ChildItem "$extractPath\*.ttf" | ForEach-Object {
+Get-ChildItem (Join-Path $fontDir $FilePattern) | ForEach-Object {
+    $destPath = $_.FullName
     $fileName = $_.Name
-    $destPath = Join-Path $fontDir $fileName
-    
-    # Copy file if it's not already in the destination
-    if ($_.FullName -ne $destPath) {
-        Copy-Item $_.FullName -Destination $destPath -Force
-    }
-    
-    # Clean up any bad registry keys matching the raw filename from previous scripts
-    $badName = $fileName.Replace(".ttf", "") + " (TrueType)"
-    Remove-ItemProperty -Path $regPath -Name $badName -ErrorAction SilentlyContinue
-    
-    # Register with correct internal Windows metadata name
+
+    # Derive the registry name from the font's own GDI metadata (e.g. "CaskaydiaCove NF Bold").
     try {
         $gt = New-Object System.Windows.Media.GlyphTypeface($destPath)
         $family = [System.Linq.Enumerable]::FirstOrDefault($gt.Win32FamilyNames.Values)
-        $face = [System.Linq.Enumerable]::FirstOrDefault($gt.Win32FaceNames.Values)
-        
+        $face   = [System.Linq.Enumerable]::FirstOrDefault($gt.Win32FaceNames.Values)
         $regName = if ($face -eq "Regular" -or $face -eq "Normal") { "$family (TrueType)" } else { "$family $face (TrueType)" }
-        New-ItemProperty -Path $regPath -Name $regName -Value $fileName -Force | Out-Null
     } catch {
-        New-ItemProperty -Path $regPath -Name $badName -Value $fileName -Force | Out-Null
+        $regName = $fileName.Replace(".ttf", "") + " (TrueType)"
+    }
+
+    # Drop any legacy bare-filename-named entry from older script versions.
+    $badName = $fileName.Replace(".ttf", "") + " (TrueType)"
+    if ($badName -ne $regName) { Remove-ItemProperty -Path $regPath -Name $badName -ErrorAction SilentlyContinue }
+
+    # Persist with the FULL PATH (the load-bearing fix). Only rewrite when it isn't already correct.
+    $current = (Get-ItemProperty -Path $regPath -Name $regName -ErrorAction SilentlyContinue).$regName
+    if ($current -ne $destPath) {
+        New-ItemProperty -Path $regPath -Name $regName -Value $destPath -Force | Out-Null
+        $changed++
     }
 }
 
-# Compile C# to broadcast the font cache update to the OS without a reboot
-$code = @"
+# AddFontResource = session-only; the full-path registry entry above is what persists. Only
+# load + broadcast when something changed, so already-correct runs stay quiet.
+if ($changed -gt 0) {
+    $code = @"
 using System;
 using System.Runtime.InteropServices;
 public class FontCache {
@@ -89,70 +119,70 @@ public class FontCache {
     public static extern int SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     public const uint WM_FONTCHANGE = 0x001D;
     public static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
-    
-    public static void Notify(string fontPath) {
-        AddFontResource(fontPath);
-    }
-    public static void Broadcast() {
-        SendMessage(HWND_BROADCAST, WM_FONTCHANGE, IntPtr.Zero, IntPtr.Zero);
-    }
+    public static void Notify(string fontPath) { AddFontResource(fontPath); }
+    public static void Broadcast() { SendMessage(HWND_BROADCAST, WM_FONTCHANGE, IntPtr.Zero, IntPtr.Zero); }
 }
 "@
-try {
-    Add-Type -TypeDefinition $code -Language CSharp
-    Get-ChildItem "$fontDir\*.ttf" | ForEach-Object { [FontCache]::Notify($_.FullName) }
-    [FontCache]::Broadcast()
-} catch {
-    Write-Host "Warning: Could not broadcast font change to OS. A restart may be required."
+    try {
+        Add-Type -TypeDefinition $code -Language CSharp
+        Get-ChildItem (Join-Path $fontDir $FilePattern) | ForEach-Object { [FontCache]::Notify($_.FullName) }
+        [FontCache]::Broadcast()
+    } catch {
+        Write-Host "  Warning: could not broadcast font change to the OS; a re-login may be needed."
+    }
 }
 
 if (Test-Path $out) { Remove-Item $out -Force }
-if (Test-Path "$env:TEMP\$ZipName") { Remove-Item "$env:TEMP\$ZipName" -Recurse -Force }
+if (Test-Path $extractPath) { Remove-Item $extractPath -Recurse -Force }
+
+if ($changed -gt 0) { Write-Host "STATUS:REPAIRED ($changed faces)" } else { Write-Host "STATUS:OK" }
 EOF
 
-    # 1. Install / Repair Cascadia
-    # We check if the internal font metadata name exists in the Windows Registry instead of just checking the file.
-    if ! reg.exe query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" 2>/dev/null | grep -qi "CaskaydiaCove Nerd Font (TrueType)"; then
-        echo -e "${YELLOW}CascadiaCode Nerd Font registry entry missing/corrupted. Fixing...${NC}"
-        powershell.exe -ExecutionPolicy Bypass -File "$(wslpath -w /tmp/install_fonts.ps1)" -FontUrl "$CASCADIA_URL" -ZipName "CascadiaCode"
-        echo -e "${GREEN}✓ CascadiaCode successfully registered.${NC}"
-    else
-        echo -e "${GREEN}✓ CascadiaCode Nerd Font already installed and registered in Windows.${NC}"
-    fi
+    # A font is correctly installed iff HKCU has an entry whose VALUE is a full path (drive
+    # letter + backslash). This also detects the old bare-filename state and triggers repair.
+    font_fullpath_registered() {  # $1 = family-name substring (case-insensitive)
+        reg.exe query "$REG_FONTS" 2>/dev/null | grep -iE "$1"'.*REG_SZ.*[A-Za-z]:\\' >/dev/null 2>&1
+    }
 
-    # 2. Install / Repair FiraCode
-    if ! reg.exe query "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts" 2>/dev/null | grep -qi "FiraCode Nerd Font (TrueType)"; then
-        echo -e "${YELLOW}FiraCode Nerd Font registry entry missing/corrupted. Fixing...${NC}"
-        powershell.exe -ExecutionPolicy Bypass -File "$(wslpath -w /tmp/install_fonts.ps1)" -FontUrl "$FIRACODE_URL" -ZipName "FiraCode"
-        echo -e "${GREEN}✓ FiraCode successfully registered.${NC}"
-    else
-        echo -e "${GREEN}✓ FiraCode Nerd Font already installed and registered in Windows.${NC}"
-    fi
+    install_or_repair() {  # $1=url $2=zipname $3=file-glob $4=reg-match $5=friendly
+        if font_fullpath_registered "$4"; then
+            echo -e "${GREEN}✓ $5 already installed (full-path registry entry).${NC}"
+        else
+            echo -e "${YELLOW}$5 missing or registered with a bare filename (lost on reboot). Fixing...${NC}"
+            powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(wslpath -w /tmp/install_fonts.ps1)" \
+                -FontUrl "$1" -ZipName "$2" -FilePattern "$3" | tr -d '\r'
+            echo -e "${GREEN}✓ $5 registered with full path.${NC}"
+        fi
+    }
 
-    # Clean up powershell script
+    # 1. CaskaydiaCove (archive: CascadiaCode.zip) — GDI family "CaskaydiaCove NF"
+    install_or_repair "$CASCADIA_URL" "CascadiaCode" "CaskaydiaCove*.ttf" "CaskaydiaCove" \
+        "CaskaydiaCove Nerd Font (from CascadiaCode.zip)"
+
+    # 2. FiraCode — family "FiraCode Nerd Font"
+    install_or_repair "$FIRACODE_URL" "FiraCode" "FiraCode*.ttf" "FiraCode Nerd Font" \
+        "FiraCode Nerd Font"
+
     rm -f /tmp/install_fonts.ps1
 
-    # 3. Check Windows Terminal config
+    # 3. Check Windows Terminal config. WT uses DirectWrite, so the face is the full
+    #    typographic name "CaskaydiaCove Nerd Font" ("… Mono" for single-width icons).
     if [ -f "$WT_SETTINGS" ]; then
-        if ! grep -qi "CaskaydiaCove" "$WT_SETTINGS"; then
-            echo -e "\n${YELLOW}[ACTION REQUIRED] Windows Terminal is not configured to use Cascadia Nerd Font!${NC}"
-            echo "  -> Open Windows Terminal Settings (Ctrl+,)"
-            echo "  -> Go to Defaults > Appearance"
-            echo "  -> Set font to 'CaskaydiaCove Nerd Font'"
+        if grep -qi "CaskaydiaCove" "$WT_SETTINGS"; then
+            echo -e "${GREEN}✓ Windows Terminal configured with CaskaydiaCove Nerd Font.${NC}"
         else
-            echo -e "${GREEN}✓ Windows Terminal configured with Cascadia.${NC}"
+            echo -e "\n${YELLOW}[ACTION REQUIRED] Set the Windows Terminal font face to 'CaskaydiaCove Nerd Font'.${NC}"
+            echo "  -> Settings (Ctrl+,) > Defaults > Appearance > Font face > 'CaskaydiaCove Nerd Font' ('… Mono' for single-width icons)."
         fi
     else
-        echo -e "${YELLOW}~ Could not locate Windows Terminal settings. Please configure your terminal font manually.${NC}"
+        echo -e "${YELLOW}~ Could not locate Windows Terminal settings. Set the font face to 'CaskaydiaCove Nerd Font' manually.${NC}"
     fi
 
     # 4. Check VS Code config
     if [ -f "$VSCODE_SETTINGS" ]; then
         if ! grep -qi "FiraCode" "$VSCODE_SETTINGS" && ! grep -qi "Fira Code" "$VSCODE_SETTINGS"; then
             echo -e "\n${YELLOW}[ACTION REQUIRED] VS Code (Windows) is not configured to use FiraCode Nerd Font!${NC}"
-            echo "  -> Open VS Code Settings (Ctrl+,)"
-            echo "  -> Search 'Font Family'"
-            echo "  -> Add 'FiraCode Nerd Font', to the front of the list."
+            echo "  -> Settings (Ctrl+,) > search 'Font Family' > add 'FiraCode Nerd Font', to the front."
         else
             echo -e "${GREEN}✓ VS Code (Windows) configured with FiraCode.${NC}"
         fi
@@ -164,10 +194,10 @@ else
     echo "Detected native Linux environment. Installing fonts locally..."
     LINUX_FONTS_DIR="$HOME/.local/share/fonts"
     mkdir -p "$LINUX_FONTS_DIR"
-    
-    # 1. Install Cascadia
+
+    # 1. Install Cascadia (CaskaydiaCove)
     if ! ls "$LINUX_FONTS_DIR" 2>/dev/null | grep -qi "CaskaydiaCove"; then
-        echo "Downloading and installing CascadiaCode Nerd Font..."
+        echo "Downloading and installing CaskaydiaCove Nerd Font (CascadiaCode.zip)..."
         TMP_DIR=$(mktemp -d)
         curl -sL "$CASCADIA_URL" -o "$TMP_DIR/Cascadia.zip"
         unzip -q "$TMP_DIR/Cascadia.zip" -d "$TMP_DIR/Cascadia"
@@ -175,7 +205,7 @@ else
         rm -rf "$TMP_DIR"
         fc-cache -f "$LINUX_FONTS_DIR"
     else
-        echo -e "${GREEN}✓ CascadiaCode Nerd Font already installed locally.${NC}"
+        echo -e "${GREEN}✓ CaskaydiaCove Nerd Font already installed locally.${NC}"
     fi
 
     # 2. Install FiraCode
@@ -196,16 +226,14 @@ else
     if [ -f "$VSCODE_SETTINGS" ]; then
         if ! grep -qi "FiraCode" "$VSCODE_SETTINGS" && ! grep -qi "Fira Code" "$VSCODE_SETTINGS"; then
             echo -e "\n${YELLOW}[ACTION REQUIRED] VS Code (Linux) is not configured to use FiraCode Nerd Font!${NC}"
-            echo "  -> Open VS Code Settings (Ctrl+,)"
-            echo "  -> Search 'Font Family'"
-            echo "  -> Add 'FiraCode Nerd Font', to the front of the list."
+            echo "  -> Settings (Ctrl+,) > search 'Font Family' > add 'FiraCode Nerd Font', to the front."
         else
             echo -e "${GREEN}✓ VS Code (Linux) configured with FiraCode.${NC}"
         fi
     fi
 
     # 4. Prompt for local terminal
-    echo -e "\n${YELLOW}[ACTION REQUIRED] Please ensure your native Linux terminal emulator is configured to use 'CaskaydiaCove Nerd Font' or 'FiraCode Nerd Font'.${NC}"
+    echo -e "\n${YELLOW}[ACTION REQUIRED] Ensure your Linux terminal uses 'CaskaydiaCove Nerd Font' or 'FiraCode Nerd Font'.${NC}"
 fi
 
 echo -e "\n${GREEN}Font check and installation complete!${NC}"
