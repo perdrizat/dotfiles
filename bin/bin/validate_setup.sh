@@ -291,6 +291,9 @@ check_symlink ".codex/AGENTS.md" "$HOME/.codex/AGENTS.md" "$GLOBAL_INSTRUCTIONS"
 check_symlink ".gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 
 # --- Claude Code Settings ---
+# Only when Claude is enabled — a disabled machine has no Claude settings to check (the
+# always-on ~/.claude/CLAUDE.md global-instructions symlink is validated separately above).
+if [[ "$INSTALL_CLAUDE" == true ]]; then
 print_header "Claude Code Configuration"
 
 if [ -L "$HOME/.claude/settings.json" ]; then
@@ -334,8 +337,12 @@ else
     print_row ".claude/settings.json" "${RED}x Missing${NC}" "run setup.sh to create from template"
     missing_items+=("claude-settings")
 fi
+fi
 
 # --- Antigravity Configuration ---
+# Only when agy is enabled — a disabled machine has no agy config to check (the gemini stow
+# package is likewise skipped via STOW_SKIP in setup.sh).
+if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
 print_header "Antigravity Configuration"
 
 AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
@@ -380,6 +387,7 @@ elif [ -f "$AGY_SETTINGS" ]; then
 else
     print_row "agy settings.json" "${RED}x Missing${NC}" "run setup.sh to create/merge from template"
     missing_items+=("agy-settings")
+fi
 fi
 
 # --- SSH ---

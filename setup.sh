@@ -73,6 +73,11 @@ SSH_YUBIKEY=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
 
+# When Antigravity is disabled, skip its stow package (agy skills + settings template) so
+# neither setup nor validate provisions or flags agy config. Done after sourcing the config
+# (so the toggle is known) and before the return below (so validate_setup.sh sees it too).
+[[ "$INSTALL_ANTIGRAVITY" != true ]] && STOW_SKIP+=(gemini)
+
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
@@ -112,22 +117,26 @@ fi
 echo "Linking dotfiles with Stow..."
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
 mkdir -p ~/.ssh && chmod 700 ~/.ssh # prevent stow from folding .ssh into a symlink (generated files must not land in repo)
-mkdir -p ~/.gemini/config  # real dir so stow folds skills at ~/.gemini/config/skills (agy writes other config here)
-# ~/.gemini/antigravity-cli must be a real local dir, never a stow symlink into the repo:
-# agy writes runtime state (settings, logs, oauth token) there — a folded dir symlink made
-# agy write into the repo and let `stow --adopt` clobber the settings template. The subtree
-# is excluded from stow via gemini/.stow-local-ignore; unfold any pre-existing symlink here.
-if [ -L ~/.gemini/antigravity-cli ]; then
-    rm -f ~/.gemini/antigravity-cli
-    mkdir -p ~/.gemini/antigravity-cli
-    # Salvage agy runtime state written through the old symlink into the repo (oauth token,
-    # logs, history, …) — everything except the tracked settings.json template
-    for _f in "$DOTFILES_DIR"/gemini/.gemini/antigravity-cli/* "$DOTFILES_DIR"/gemini/.gemini/antigravity-cli/.[!.]*; do
-        [ -e "$_f" ] || [ -L "$_f" ] || continue
-        [ "$(basename "$_f")" = "settings.json" ] && continue
-        mv "$_f" ~/.gemini/antigravity-cli/
-    done
-    echo "Unfolded ~/.gemini/antigravity-cli (was a stow symlink into the repo); salvaged agy runtime state"
+# Antigravity-only dirs: created/unfolded only when agy is enabled, so a disabled machine's
+# ~/.gemini is left untouched (the gemini stow package is also skipped, see STOW_SKIP above).
+if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
+    mkdir -p ~/.gemini/config  # real dir so stow folds skills at ~/.gemini/config/skills (agy writes other config here)
+    # ~/.gemini/antigravity-cli must be a real local dir, never a stow symlink into the repo:
+    # agy writes runtime state (settings, logs, oauth token) there — a folded dir symlink made
+    # agy write into the repo and let `stow --adopt` clobber the settings template. The subtree
+    # is excluded from stow via gemini/.stow-local-ignore; unfold any pre-existing symlink here.
+    if [ -L ~/.gemini/antigravity-cli ]; then
+        rm -f ~/.gemini/antigravity-cli
+        mkdir -p ~/.gemini/antigravity-cli
+        # Salvage agy runtime state written through the old symlink into the repo (oauth token,
+        # logs, history, …) — everything except the tracked settings.json template
+        for _f in "$DOTFILES_DIR"/gemini/.gemini/antigravity-cli/* "$DOTFILES_DIR"/gemini/.gemini/antigravity-cli/.[!.]*; do
+            [ -e "$_f" ] || [ -L "$_f" ] || continue
+            [ "$(basename "$_f")" = "settings.json" ] && continue
+            mv "$_f" ~/.gemini/antigravity-cli/
+        done
+        echo "Unfolded ~/.gemini/antigravity-cli (was a stow symlink into the repo); salvaged agy runtime state"
+    fi
 fi
 for pkg_dir in "$DOTFILES_DIR"/*/; do
     pkg=$(basename "$pkg_dir")
@@ -157,15 +166,19 @@ merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src) $4=mess
 ALLOWS_UNION='.[0] * {permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}'
 
 # Deploy Claude settings.json from template (not via stow to allow local customization),
-# then keep forward-merging template allows so allows committed on other machines propagate
-CLAUDE_SETTINGS="$HOME/.claude/settings.json"
-CLAUDE_TEMPLATE="$DOTFILES_DIR/claude/.claude/settings.json"
-if [ ! -f "$CLAUDE_SETTINGS" ]; then
-    cp "$CLAUDE_TEMPLATE" "$CLAUDE_SETTINGS"
-    echo "Deployed settings.json template to ~/.claude/settings.json"
-else
-    merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" "$ALLOWS_UNION" \
-        "Merged template allows into ~/.claude/settings.json"
+# then keep forward-merging template allows so allows committed on other machines propagate.
+# Only when Claude is enabled — a disabled machine gets no settings.json provisioned (the
+# always-on ~/.claude/CLAUDE.md global-instructions symlink below is a separate concern).
+if [[ "$INSTALL_CLAUDE" == true ]]; then
+    CLAUDE_SETTINGS="$HOME/.claude/settings.json"
+    CLAUDE_TEMPLATE="$DOTFILES_DIR/claude/.claude/settings.json"
+    if [ ! -f "$CLAUDE_SETTINGS" ]; then
+        cp "$CLAUDE_TEMPLATE" "$CLAUDE_SETTINGS"
+        echo "Deployed settings.json template to ~/.claude/settings.json"
+    else
+        merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" "$ALLOWS_UNION" \
+            "Merged template allows into ~/.claude/settings.json"
+    fi
 fi
 
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
