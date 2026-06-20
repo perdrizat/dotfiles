@@ -13,6 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `setup.sh` / `bin/bin/validate_setup.sh`: gate all Antigravity config on `INSTALL_ANTIGRAVITY` — when false, the `gemini` stow package (agy skills + settings template) is added to `STOW_SKIP`, the `~/.gemini/config` mkdir and `~/.gemini/antigravity-cli` unfold are skipped, and validate no longer runs (or flags) the Antigravity Configuration section. Previously a disabled machine was told to re-run setup for a missing `agy settings.json`.
 - `setup.sh` / `bin/bin/validate_setup.sh`: gate Claude settings on `INSTALL_CLAUDE` the same way — when false, `~/.claude/settings.json` is not deployed/merged and validate skips the Claude Code Configuration section. The always-on `~/.claude/CLAUDE.md` global-instructions symlink is unaffected.
 
+### Changed
+
+- `claude/.claude/settings.json`: allow internet access generally — replaced the three `WebFetch(domain:…)` entries with a broad `WebFetch` (all domains) plus `WebSearch`, so the agent no longer prompts per website
+
 ## [2026-06-16]
 
 ### Changed

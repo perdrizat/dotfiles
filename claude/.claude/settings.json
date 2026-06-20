@@ -12,9 +12,8 @@
       "Bash(pre_commit_check.sh*)",
       "Bash(validate_project.sh*)",
       "Bash(validate_setup.sh*)",
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch",
+      "WebSearch"
     ]
   },
   "hooks": {
