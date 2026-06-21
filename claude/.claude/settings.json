@@ -13,6 +13,9 @@
       "Bash(validate_project.sh*)",
       "Bash(validate_setup.sh*)",
       "WebFetch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.npmjs.com)",
       "WebSearch"
     ]
   },
