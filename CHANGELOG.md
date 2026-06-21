@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-21]
+
+### Added
+
+- `vim` stow package (`vim/.vimrc`): `set mouse=` to disable the mouse so it never enters Visual mode on selection, letting the terminal handle copy/paste
+
 ## [2026-06-20]
 
 ### Fixed
