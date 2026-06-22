@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- `setup.sh`: reword the Firefox block header from "Setting up Mozilla apt repo" to "Installing Firefox from the Mozilla apt repo" — the repo-setup substeps are idempotent and silent when already present, so the old header falsely implied the repo was being recreated on every Firefox (re)install.
+
+## [2026-06-22]
+
+### Fixed
+
+- `setup.sh` / `bin/bin/validate_setup.sh`: Ubuntu's `firefox` snap stub deb (version `1:1snap1-…`) satisfied the old `dpkg -s firefox` presence check, so the Mozilla deb was never installed and the snap stayed. Now a snap-versioned build counts as "needs the Mozilla deb": setup reinstalls it (`--allow-downgrades`, the stub's `1:` epoch outranks Mozilla's) and removes the leftover snap; validate flags it as `x Snap stub`.
+
 ## [2026-06-21]
 
 ### Added

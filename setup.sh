@@ -275,17 +275,30 @@ fi
 
 # --- Firefox (Mozilla apt repo) ---
 # For now either toggle installs both the latest and ESR builds from the Mozilla repo.
+# Stock Ubuntu ships `firefox` as a transitional stub deb (version like
+# `1:1snap1-0ubuntu5`) whose sole job is to pull in the snap. `dpkg -s firefox`
+# succeeds for that stub, so a naive presence check is fooled into leaving the
+# snap in place. Treat any snap-versioned build as "needs the Mozilla deb".
 if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
+    # true when the package is absent OR installed only as Ubuntu's snap stub
+    ff_need() { ! dpkg -s "$1" >/dev/null 2>&1 || dpkg-query -W -f='${Version}' "$1" 2>/dev/null | grep -q snap; }
     ff_pkgs=()
-    dpkg -s firefox     >/dev/null 2>&1 || ff_pkgs+=(firefox)
-    dpkg -s firefox-esr >/dev/null 2>&1 || ff_pkgs+=(firefox-esr)
+    ff_need firefox     && ff_pkgs+=(firefox)
+    ff_need firefox-esr && ff_pkgs+=(firefox-esr)
     if [ ${#ff_pkgs[@]} -gt 0 ]; then
-        echo "Setting up Mozilla apt repo for Firefox: ${ff_pkgs[*]}..."
+        echo "Installing Firefox from the Mozilla apt repo: ${ff_pkgs[*]}..."
         sudo install -d -m 0755 /etc/apt/keyrings
         [ -f /etc/apt/keyrings/packages.mozilla.org.asc ] || curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null
         [ -f /etc/apt/sources.list.d/mozilla.list ] || echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null
         [ -f /etc/apt/preferences.d/mozilla ] || printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' | sudo tee /etc/apt/preferences.d/mozilla
-        sudo apt-get -qq update && sudo apt-get -qq install -y "${ff_pkgs[@]}"
+        # --allow-downgrades: the stub's `1:` epoch sorts above Mozilla's versions, so
+        # replacing it counts as a downgrade even though the Pin-Priority 1000 selects it.
+        sudo apt-get -qq update && sudo apt-get -qq install -y --allow-downgrades "${ff_pkgs[@]}"
+        # Drop the now-redundant Firefox snap that Ubuntu's stub left behind.
+        if command -v snap >/dev/null 2>&1 && snap list firefox >/dev/null 2>&1; then
+            echo "Removing redundant Firefox snap..."
+            sudo snap remove firefox
+        fi
     fi
 fi
 

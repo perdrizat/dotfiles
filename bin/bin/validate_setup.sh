@@ -613,12 +613,15 @@ fi
 
 # For now either Firefox toggle installs & checks both the latest and ESR builds.
 if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
-    if dpkg -s firefox >/dev/null 2>&1; then
-        ver=$(dpkg -s firefox 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
-        print_row "Firefox (latest)" "${GREEN}✓ Installed${NC}" "$ver"
-    else
+    ff_ver=$(dpkg-query -W -f='${Version}' firefox 2>/dev/null)
+    if [ -z "$ff_ver" ]; then
         print_row "Firefox (latest)" "${RED}x Missing${NC}" ""
         missing_items+=("install-ff")
+    elif printf '%s' "$ff_ver" | grep -q snap; then
+        print_row "Firefox (latest)" "${RED}x Snap stub${NC}" "$ff_ver (want Mozilla deb)"
+        missing_items+=("install-ff")
+    else
+        print_row "Firefox (latest)" "${GREEN}✓ Installed${NC}" "$ff_ver"
     fi
     if dpkg -s firefox-esr >/dev/null 2>&1; then
         ver=$(dpkg -s firefox-esr 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
