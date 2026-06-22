@@ -6,8 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-06-23]
+
 ### Changed
 
+- `agents/AGENTS.md`: recast "Running commands" around staying within allowlisted behaviour to avoid approval prompts — name the two distinct prompt triggers (shell operators in the line; non-allowlisted tools/args, e.g. `sed`/`awk`, or `grep` with expansion-looking arguments) and route around each, targeting the recurring `cmd | grep | tail` habit specifically; add a rule to keep scratch files in the session scratch dir or a gitignored repo `.tmp/` rather than `/tmp` (and not to blanket-allowlist `/tmp`).
 - `setup.sh`: reword the Firefox block header from "Setting up Mozilla apt repo" to "Installing Firefox from the Mozilla apt repo" — the repo-setup substeps are idempotent and silent when already present, so the old header falsely implied the repo was being recreated on every Firefox (re)install.
 
 ## [2026-06-22]
