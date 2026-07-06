@@ -8,9 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-07-06]
 
+### Added
+
+- `SSH_LOCAL` toggle (`.setup.conf.template`, default off): opt-in decryption of the age-encrypted SSH private key to `~/.ssh/id_ed25519`. Now the sole gate for local decryption (was implicitly gated behind `SSH_YUBIKEY != true`), so it works independently of the YubiKey relay; `validate_setup.sh` only flags `ssh-decrypt` when `SSH_LOCAL` is on.
+
 ### Changed
 
 - `agents/AGENTS.md`: add a Patterns & Conventions rule to delegate coding tasks to an appropriately lower-power model run in a subagent, reserving the high-power orchestrator for planning/judgement/review.
+
+### Fixed
+
+- `setup.sh`: a wrong age passphrase left a 0-byte `~/.ssh/id_ed25519` that the old `[ ! -f ]` guard mistook for a decrypted key (skipping it on every rerun). Now decrypts under `umask 077`, verifies the result is non-empty, retries up to 3 times, and removes any stray empty key up front. `validate_setup.sh` flags a 0-byte key as `x Empty`.
 
 ## [2026-06-23]
 

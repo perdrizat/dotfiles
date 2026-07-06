@@ -393,11 +393,22 @@ fi
 # --- SSH ---
 print_header "SSH"
 
-if [ -f "$HOME/.ssh/id_ed25519" ]; then
+if [ -s "$HOME/.ssh/id_ed25519" ]; then
     print_row "SSH private key" "${GREEN}✓ Decrypted${NC}" "~/.ssh/id_ed25519"
-elif [ -f "$HOME/.ssh/id_ed25519.age" ]; then
-    print_row "SSH private key" "${YELLOW}~ Encrypted${NC}" "Needs age decryption"
+elif [ -f "$HOME/.ssh/id_ed25519" ]; then
+    # Present but 0 bytes — a failed/aborted age decryption. Always a fault regardless of
+    # SSH_LOCAL: re-running setup.sh drops the empty key and retries the decryption.
+    print_row "SSH private key" "${RED}x Empty${NC}" "0-byte key from a failed decryption"
     missing_items+=("ssh-decrypt")
+elif [ -f "$HOME/.ssh/id_ed25519.age" ]; then
+    # Only a fault when SSH_LOCAL is set — otherwise a local key is intentionally absent
+    # (the machine uses the YubiKey relay or needs no key), so the encrypted .age is fine.
+    if [[ "$SSH_LOCAL" == true ]]; then
+        print_row "SSH private key" "${YELLOW}~ Encrypted${NC}" "Needs age decryption"
+        missing_items+=("ssh-decrypt")
+    else
+        print_row "SSH private key" "${GREEN}✓ Encrypted${NC}" "SSH_LOCAL off — no local key wanted"
+    fi
 else
     print_row "SSH private key" "${RED}x Missing${NC}" "No key or .age file"
 fi
@@ -415,7 +426,7 @@ if [ -f "$HOME/.ssh/id_ed25519.age" ] && [ -f "$DOTFILES_DIR/ssh/.ssh/id_ed25519
 fi
 
 # Verify public key matches private key
-if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
+if [ -s "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
     priv_pub=$(ssh-keygen -y -f "$HOME/.ssh/id_ed25519" 2>/dev/null | cut -d' ' -f1,2)
     disk_pub=$(cut -d' ' -f1,2 "$HOME/.ssh/id_ed25519.pub" 2>/dev/null)
     if [ "$priv_pub" = "$disk_pub" ]; then
@@ -424,7 +435,7 @@ if [ -f "$HOME/.ssh/id_ed25519" ] && [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
         print_row "Public key matches private" "${RED}x Mismatch${NC}" "Regenerate with ssh-keygen -y"
         missing_items+=("ssh-regen-pub")
     fi
-elif [ -f "$HOME/.ssh/id_ed25519" ] && [ ! -f "$HOME/.ssh/id_ed25519.pub" ]; then
+elif [ -s "$HOME/.ssh/id_ed25519" ] && [ ! -f "$HOME/.ssh/id_ed25519.pub" ]; then
     print_row "Public key" "${YELLOW}~ Missing${NC}" "Regenerate from private key"
     missing_items+=("ssh-regen-pub")
 fi

@@ -17,7 +17,8 @@ INSTALL_CLAUDE=true     # Claude Code CLI
 INSTALL_ANTIGRAVITY=false # Antigravity CLI (agy; replaces the retired Gemini CLI)
 
 # SSH toggles
-SSH_YUBIKEY=false        # WSL: relay Windows ssh-agent (YubiKey ed25519-sk) into WSL via socat+npiperelay
+SSH_YUBIKEY=true        # WSL: relay Windows ssh-agent (YubiKey ed25519-sk) into WSL via socat+npiperelay
+SSH_LOCAL=false          # decrypt the age-encrypted SSH private key to ~/.ssh/id_ed25519 (opt-in; most machines use the YubiKey relay or need no local key)
 
 # Additional apt packages (space-separated)
 MORE_APT_PACKAGES=""

@@ -69,7 +69,7 @@ fi
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
 INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_ANTIGRAVITY=false
-SSH_YUBIKEY=false
+SSH_LOCAL=false; SSH_YUBIKEY=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
 
@@ -206,16 +206,30 @@ for _retired in ~/.gemini/AGENTS.md ~/.gemini/skills ~/.gemini/skills.inactive "
     [ -L "$_retired" ] && rm -f "$_retired"
 done
 
-# sort out SSH
-if [[ "$SSH_YUBIKEY" != true ]]; then
-    # Decrypt SSH key if it doesn't already exist
-    if [ -f ~/.ssh/id_ed25519.age ] && [ ! -f ~/.ssh/id_ed25519 ]; then
-        echo "Decrypting SSH key..."
-        touch ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
-        age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age
+# sort out SSH — decrypt the private key locally only when SSH_LOCAL is set. Opt-in because
+# most machines use the YubiKey relay or need no local key. Independent of SSH_YUBIKEY: a
+# relay machine may still want a decrypted key on disk, so both toggles can be true at once.
+#
+# A failed decryption (wrong passphrase) leaves a 0-byte key behind; drop any such empty key
+# up front so it isn't mistaken for a real one by the pubkey step, validate, or ssh itself.
+[ -f ~/.ssh/id_ed25519 ] && [ ! -s ~/.ssh/id_ed25519 ] && rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+if [[ "$SSH_LOCAL" == true ]]; then
+    # Decrypt the key when it's missing or empty. age -o creates the output file before it
+    # reads the passphrase, so a wrong passphrase leaves a 0-byte file — verify non-empty and
+    # retry (up to 3 attempts), and never leave a partial key behind.
+    if [ -f ~/.ssh/id_ed25519.age ] && [ ! -s ~/.ssh/id_ed25519 ]; then
+        for _attempt in 1 2 3; do
+            echo "Decrypting SSH key (attempt $_attempt/3)..."
+            rm -f ~/.ssh/id_ed25519
+            (umask 077 && age --decrypt -o ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.age)
+            [ -s ~/.ssh/id_ed25519 ] && chmod 600 ~/.ssh/id_ed25519 && break
+            echo "  decryption failed (wrong passphrase?) — retrying..."
+            rm -f ~/.ssh/id_ed25519
+        done
+        [ -s ~/.ssh/id_ed25519 ] || echo "SSH key decryption failed after 3 attempts — re-run setup.sh to try again."
     fi
     # Regenerate public key from private key (pub key is not tracked in git)
-    if [ -f ~/.ssh/id_ed25519 ]; then
+    if [ -s ~/.ssh/id_ed25519 ]; then
         echo "Regenerating public key from private key..."
         ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
     fi
