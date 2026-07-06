@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-06]
+
+### Changed
+
+- `agents/AGENTS.md`: add a Patterns & Conventions rule to delegate coding tasks to an appropriately lower-power model run in a subagent, reserving the high-power orchestrator for planning/judgement/review.
+
 ## [2026-06-23]
 
 ### Changed

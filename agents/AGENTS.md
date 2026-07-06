@@ -8,6 +8,7 @@ Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific
 
 ## Patterns & Conventions
 
+- **Delegate coding to a lower-power subagent**: For coding tasks, use your judgement to pick an appropriately *lower-power* model and run the work in a subagent — reserve the high-power orchestrator for planning, judgement, and review, and hand the implementation to the cheaper model. Where an agent has no subagent mechanism, apply the spirit: don't default to the most powerful model when a lighter one will do.
 - **Always use red/green TDD**: Write failing tests first, then implement the code to make them pass. Never write production code without a corresponding test written beforehand.
 - **No Emojis**: Do not use emojis in your text output unless explicitly requested by the user. If you need to indicate status, use unobtrusive textual symbols like `✓` (OK), `~` (WARN), and `x` (FAIL) to safe space. Colors are OK.
 
