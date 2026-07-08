@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-08]
+
+### Changed
+
+- `agents/AGENTS.md`: scratch-file rule now mandates the repo's gitignored `.tmp/` (create it if missing) as the single scratch location, dropping the session-scratch-dir alternative.
+- `init_project.sh`: create `.tmp/` and add it to `.gitignore` when bootstrapping a project.
+- `validate_project.sh`: check that `.tmp/` exists and is gitignored.
+- `.gitignore`: ignore the `.tmp/` scratch dir in this repo too.
+
 ## [2026-07-06]
 
 ### Added

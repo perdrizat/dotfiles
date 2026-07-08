@@ -1,5 +1,5 @@
 #!/bin/bash
-# init_project.sh — Bootstrap CONTRIBUTING.md, CHANGELOG.md, and agent symlinks in the current directory
+# init_project.sh — Bootstrap CONTRIBUTING.md, CHANGELOG.md, agent symlinks, and .tmp/ scratch dir in the current directory
 #
 # Usage: init_project.sh [project-name]
 #   project-name defaults to the current directory name
@@ -63,13 +63,21 @@ for name in CLAUDE.md AGENTS.md; do
     fi
 done
 
-# Add symlinks to .gitignore so they don't get committed
-for name in CLAUDE.md AGENTS.md; do
+# Add symlinks and the scratch dir to .gitignore so they don't get committed
+for name in CLAUDE.md AGENTS.md '.tmp/'; do
     if [ -f .gitignore ] && grep -qxF "$name" .gitignore; then
         continue
     fi
     echo "$name" >> .gitignore
 done
+
+# Create the agent scratch dir (see global "Put scratch files in the repo's .tmp/" rule)
+if [ -d .tmp ]; then
+    echo ".tmp/ already exists, skipping."
+else
+    mkdir -p .tmp
+    echo "Created .tmp/ scratch dir"
+fi
 
 if [ -f CHANGELOG.md ]; then
     echo "CHANGELOG.md already exists, skipping."

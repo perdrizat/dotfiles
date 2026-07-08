@@ -4,7 +4,8 @@
 # Verifies:
 #   - CONTRIBUTING.md exists (source of truth)
 #   - CLAUDE.md, AGENTS.md are symlinks to CONTRIBUTING.md
-#   - All three symlinks are listed in .gitignore
+#   - Those symlinks and the .tmp/ scratch dir are listed in .gitignore
+#   - .tmp/ agent scratch dir exists
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -56,6 +57,17 @@ check_gitignore() {
     ((issues++))
 }
 
+check_scratch_dir() {
+    if [ -d .tmp ]; then
+        printf "  %-20s ${GREEN}✓ Present${NC}\n" ".tmp/"
+    else
+        printf "  %-20s ${RED}x Missing${NC}  — agent scratch dir\n" ".tmp/"
+        fix_commands+=("mkdir -p .tmp")
+        ((issues++))
+    fi
+    check_gitignore ".tmp/"
+}
+
 echo "Agent file check:"
 
 check_source
@@ -64,6 +76,8 @@ for name in CLAUDE.md AGENTS.md; do
     check_symlink "$name"
     check_gitignore "$name"
 done
+
+check_scratch_dir
 
 echo ""
 
