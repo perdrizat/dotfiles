@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-09]
+
+### Added
+
+- `bash/.bash_aliases`: `md` alias — `glow -pn -w0` for nicely formatted, unwrapped Markdown rendering in the pager.
+
 ## [2026-07-08]
 
 ### Changed
