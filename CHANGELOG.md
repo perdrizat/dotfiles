@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-13]
+
+### Added
+
+- `tmux/` stow package: added modern, screen-friendly `.tmux.conf` configuration (rebinds prefix to `Ctrl-A`, disables mouse to retain native terminal copy-paste per `.vimrc`, and adds intuitive shortcuts)
+- `gh/` stow package: track `gh` preferences by committing `config.yml` while adding a `.stow-local-ignore` for `hosts.yml` to prevent the secret access token from being stowed or entering the repository
+
+### Changed
+
+- `setup.sh` and `validate_setup.sh`: added `tmux` to `APT_PACKAGES` to ensure it is always installed
+- `validate_setup.sh` and `setup.sh`: verify that `gh auth status` is successful (if `gh` is installed) and print a login reminder or a `gh-auth` missing fix entry
+
 ## [2026-07-09]
 
 ### Added

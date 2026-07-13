@@ -541,6 +541,14 @@ fi
 if dpkg -s gh >/dev/null 2>&1; then
     ver=$(dpkg -s gh 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
     print_row "gh (github cli)" "${GREEN}✓ Installed${NC}" "$ver"
+    if command -v gh >/dev/null 2>&1; then
+        if gh auth status >/dev/null 2>&1; then
+            print_row "gh auth" "${GREEN}✓ Logged in${NC}" ""
+        else
+            print_row "gh auth" "${YELLOW}~ Not logged in${NC}" "run 'gh auth login'"
+            missing_items+=("gh-auth")
+        fi
+    fi
 else
     print_row "gh (github cli)" "${RED}x Missing${NC}" ""
     missing_items+=("install-gh")

@@ -8,7 +8,7 @@ DOTFILES_DIR="$HOME/dotfiles"
 
 # --- Shared variables (also used by validate_setup.sh) ---
 PREREQS=(git curl stow age unzip)
-APT_PACKAGES=(build-essential jq)
+APT_PACKAGES=(build-essential jq tmux)
 STOW_SKIP=(.git agents claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 
@@ -452,3 +452,7 @@ fi
 echo ""
 echo "To update packages and toolchains, run:"
 echo "  validate_setup.sh -u"
+echo ""
+if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
+    echo "Reminder: run 'gh auth login' to authenticate the GitHub CLI."
+fi
