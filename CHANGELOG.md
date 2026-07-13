@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `tmux/.tmux.conf`: enable `mouse on` so the scroll wheel triggers native tmux scrollback rather than sending arrow keys to interactive shell apps like `agy`
 - `setup.sh` and `validate_setup.sh`: added `tmux` to `APT_PACKAGES` to ensure it is always installed
 - `validate_setup.sh` and `setup.sh`: verify that `gh auth status` is successful (if `gh` is installed) and print a login reminder or a `gh-auth` missing fix entry
 

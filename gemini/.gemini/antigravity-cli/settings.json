@@ -36,6 +36,7 @@
       "command(pnpm test:fast)",
       "command(pnpm test:uat)",
       "command(pnpm typecheck)",
+      "command(pnpm verify)",
       "command(pre_commit_check.sh)",
       "command(ps)",
       "command(read)",
