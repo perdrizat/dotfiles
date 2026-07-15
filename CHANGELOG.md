@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-16]
+
+### Added
+
+- `tmux/.tmux.conf`: enable `focus-events on` so apps (Claude Code, Vim) receive terminal focus-in/out events, fixing Claude Code's focus warning and notification timing.
+- `INSTALL_CHROME` toggle: `setup.sh` installs `google-chrome-stable` from Google's apt repo (amd64) and `validate_setup.sh` checks it, mirroring the Firefox blocks.
+
+### Fixed
+
+- `setup.sh`: `mkdir -p ~/.config/gh` before stow so the directory can't fold into a symlink — `gh`'s secret `hosts.yml` now stays in `$HOME` instead of landing in the repo tree.
+- `.gitignore`: ignore `gh/.config/gh/hosts.yml` as defense-in-depth so the `gh` auth token can never be accidentally committed.
+
 ## [2026-07-15]
 
 ### Added

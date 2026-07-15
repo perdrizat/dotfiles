@@ -11,6 +11,7 @@ INSTALL_DOCKER=false     # apt docker-compose-v2
 INSTALL_FF=false         # Mozilla apt repo → firefox (latest)
 INSTALL_FF_ESR=false     # Mozilla apt repo → firefox-esr
 # Note: for now either Firefox toggle installs & checks both the latest and ESR builds
+INSTALL_CHROME=false     # Google apt repo → google-chrome-stable (amd64 only)
 
 # LLM agent toggles
 INSTALL_CLAUDE=true     # Claude Code CLI

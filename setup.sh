@@ -68,7 +68,7 @@ fi
 
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
-INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CLAUDE=false; INSTALL_ANTIGRAVITY=false
+INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CHROME=false; INSTALL_CLAUDE=false; INSTALL_ANTIGRAVITY=false
 SSH_LOCAL=false; SSH_YUBIKEY=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
@@ -117,6 +117,7 @@ fi
 echo "Linking dotfiles with Stow..."
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
 mkdir -p ~/.ssh && chmod 700 ~/.ssh # prevent stow from folding .ssh into a symlink (generated files must not land in repo)
+mkdir -p ~/.config/gh # real dir so stow links config.yml individually; gh's secret hosts.yml then stays in $HOME, not the repo
 # Antigravity-only dirs: created/unfolded only when agy is enabled, so a disabled machine's
 # ~/.gemini is left untouched (the gemini stow package is also skipped, see STOW_SKIP above).
 if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
@@ -314,6 +315,17 @@ if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
             sudo snap remove firefox
         fi
     fi
+fi
+
+# --- Google Chrome (Google's apt repo) ---
+# Prefer the apt repo over a one-off `.deb`: Chrome then updates via `apt upgrade` like
+# every other tool here. amd64-only — Google publishes no arm64 Chrome for Linux.
+if [[ "$INSTALL_CHROME" == true ]] && ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
+    echo "Setting up Google apt repo for Chrome..."
+    sudo install -d -m 0755 /etc/apt/keyrings
+    [ -f /etc/apt/keyrings/google-chrome.gpg ] || curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg
+    [ -f /etc/apt/sources.list.d/google-chrome.list ] || echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] https://dl.google.com/linux/chrome/deb/ stable main" | sudo tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
+    sudo apt-get -qq update && sudo apt-get -qq install -y google-chrome-stable  # apt update needed: new repo just added
 fi
 
 # Add current user to docker group (requires logout/login to take effect)

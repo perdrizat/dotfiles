@@ -6,3 +6,5 @@ CLAUDE.md
 AGENTS.md
 .setup.conf
 .tmp/
+# gh auth token — never commit (stow folding can drop it in this tree)
+gh/.config/gh/hosts.yml

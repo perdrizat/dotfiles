@@ -651,6 +651,16 @@ if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
     fi
 fi
 
+if [[ "$INSTALL_CHROME" == true ]]; then
+    if dpkg -s google-chrome-stable >/dev/null 2>&1; then
+        cr_ver=$(dpkg -s google-chrome-stable 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+        print_row "Google Chrome" "${GREEN}✓ Installed${NC}" "$cr_ver"
+    else
+        print_row "Google Chrome" "${RED}x Missing${NC}" ""
+        missing_items+=("install-chrome")
+    fi
+fi
+
 if [[ "$INSTALL_DOCKER" == true ]]; then
     if dpkg -s docker-compose-v2 >/dev/null 2>&1; then
         dc_ver=$(dpkg -s docker-compose-v2 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
