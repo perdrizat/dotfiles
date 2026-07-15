@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-15]
+
+### Added
+
+- `tmux/.tmux.conf`: `session-created` hook opens every new session with two windows, each split vertically (~65% top / ~35% bottom) and auto-running `claude --resume` in the top pane — window 1 both panes in the start dir, window 2 both panes in `~/dotfiles` (attach never re-splits).
+
 ## [2026-07-13]
 
 ### Added
