@@ -12,6 +12,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `tmux/.tmux.conf`: enable `focus-events on` so apps (Claude Code, Vim) receive terminal focus-in/out events, fixing Claude Code's focus warning and notification timing.
 - `INSTALL_CHROME` toggle: `setup.sh` installs `google-chrome-stable` from Google's apt repo (amd64) and `validate_setup.sh` checks it, mirroring the Firefox blocks.
+- `bash/.bash_aliases`: `monitor <file.md> [scan-depth]` shell function — live-renders a file's first markdown table (plus title/preamble) with glow, stopping before any second table, re-rendering on each change via mtime polling.
+
+### Changed
+
+- `bash/.bash_aliases`: `md` is now a function (was an alias) and both `md` and `monitor` wrap glow to the current terminal width via bash's `$COLUMNS` at call time (falling back to 170), instead of a fixed `-w170`. `$COLUMNS` is correct inside tmux, unlike `tput cols`, which reports 80 in a command substitution (its stdout is a pipe, not the terminal).
+- `agents/AGENTS.md`: expand the "Running commands" guidance — never poll a long-running command with a shell loop (use background mode), cancel approvals stuck over ~10 min and simplify, and propagate the command rules into every subagent brief (replaces the old "leave risky commands manual" bullet).
 
 ### Fixed
 
