@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `tmux/.tmux.conf`: window labels now read `index:command@repo` (e.g. `1:claude@dotfiles`) — the active pane's command plus its working-dir basename — instead of just the command.
 - `agents/AGENTS.md`: strengthen the scratch-file rule — `<repo>/.tmp` is the *only* scratch location and explicitly overrides any harness-provided `/tmp` "scratchpad"; never fall back to `/tmp`, `/var/tmp`, or `$TMPDIR`.
 
 ### Fixed
