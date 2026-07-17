@@ -61,28 +61,45 @@ active_color() {
 TOKEN=$(jq -r '.claudeAiOauth.accessToken // empty' "$CRED_FILE")
 [[ -z "$TOKEN" ]] && echo "Claude Offline" && exit 0
 
-# Refresh at most once per CACHE_TTL, and only ever overwrite the cache with a
-# *valid* payload. The usage endpoint rate-limits hard (HTTP 429 with a
-# multi-minute retry-after) when polled too often — e.g. several tmux panes each
-# rendering this line. Caching an error response then let the jq `// 0`
-# fallbacks fire, silently blanking the 5h/7d bars to 0%. Now we keep serving
-# the last good numbers and skip the update whenever the fetch isn't valid.
-now=$(date +%s)
-last_attempt=0
-[[ -f "$STAMP_FILE" ]] && last_attempt=$(stat -c %Y "$STAMP_FILE")
-if (( now - last_attempt >= CACHE_TTL )); then
-    touch "$STAMP_FILE"   # record the attempt up-front so concurrent panes don't all fetch
+# Query the usage endpoint and cache it. Overwrite only on a real usage payload
+# (has .five_hour.utilization); a 429 error body lacks it, so the previous good
+# cache survives the rate limit.
+fetch_and_cache() {
+    local resp
     resp=$(curl -s -H "Authorization: Bearer $TOKEN" \
          -H "anthropic-beta: oauth-2025-04-20" \
          https://api.anthropic.com/api/oauth/usage)
-    # Overwrite only on a real usage payload (has .five_hour.utilization); a 429
-    # error body lacks it, so the previous good cache survives the rate limit.
     if echo "$resp" | jq -e '.five_hour.utilization != null' >/dev/null 2>&1; then
         echo "$resp" > "$CACHE_FILE"
     fi
+}
+
+# The usage endpoint rate-limits hard (HTTP 429) when polled too often — e.g.
+# several tmux panes each rendering this line — so warm refreshes are throttled
+# to one shared fetch per CACHE_TTL, stamped up front so concurrent panes don't
+# all fetch. But when the cache file is *missing* (cold /tmp, or a stale stamp
+# left by a failed attempt) the throttle must not gate the fetch, or the bars
+# stay unknown until the stamp ages out. So on a cold cache we reverse the
+# order: query first, stamp second, ignoring the throttle entirely.
+now=$(date +%s)
+last_attempt=0
+[[ -f "$STAMP_FILE" ]] && last_attempt=$(stat -c %Y "$STAMP_FILE")
+if [[ ! -f "$CACHE_FILE" ]]; then
+    fetch_and_cache
+    touch "$STAMP_FILE"
+elif (( now - last_attempt >= CACHE_TTL )); then
+    touch "$STAMP_FILE"
+    fetch_and_cache
 fi
-data=$(cat "$CACHE_FILE" 2>/dev/null)
-[[ -z "$data" ]] && data='{}'
+
+# No cached payload yet (fetch failed / offline) → render unknown, not 0%.
+if [[ -s "$CACHE_FILE" ]]; then
+    data=$(cat "$CACHE_FILE")
+    have_usage=1
+else
+    data='{}'
+    have_usage=0
+fi
 
 # --- 5. PARSE API STATS ---
 curr_util=$(echo "$data" | jq -r '.five_hour.utilization // 0')
@@ -136,5 +153,9 @@ printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}conte
 
 # Line 2: Global API status
 extra_color=$(active_color "$extra_enabled")
-printf "${GRAY}5h:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}7d:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
-    "$(draw_dots "$curr_pct")" "$reset_curr" "$(draw_dots "$week_pct")" "$reset_week" "$extra_display"
+if (( have_usage )); then
+    printf "${GRAY}5h:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}7d:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
+        "$(draw_dots "$curr_pct")" "$reset_curr" "$(draw_dots "$week_pct")" "$reset_week" "$extra_display"
+else
+    printf "${GRAY}5h:${RESET} unknown ${GRAY}|${RESET} ${GRAY}7d:${RESET} unknown ${GRAY}|${RESET} ${GRAY}Extra:${RESET} unknown\n"
+fi

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-17]
+
+### Changed
+
+- `agents/AGENTS.md`: strengthen the scratch-file rule — `<repo>/.tmp` is the *only* scratch location and explicitly overrides any harness-provided `/tmp` "scratchpad"; never fall back to `/tmp`, `/var/tmp`, or `$TMPDIR`.
+
+### Fixed
+
+- `bin/bin/claude_status.sh`: a stale throttle stamp with a missing cache left the 5h/7d bars stuck (the stamp blocked every fetch, so the cache never populated). Now a cold cache fetches *first* and stamps *second*, bypassing the throttle, and renders `unknown` instead of a misleading `0%` until real usage data is cached.
+
 ## [2026-07-16]
 
 ### Added
