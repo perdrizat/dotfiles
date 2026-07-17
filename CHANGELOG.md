@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
-- `bin/bin/claude_status.sh`: a stale throttle stamp with a missing cache left the 5h/7d bars stuck (the stamp blocked every fetch, so the cache never populated). Now a cold cache fetches *first* and stamps *second*, bypassing the throttle, and renders `unknown` instead of a misleading `0%` until real usage data is cached.
+- `bin/bin/claude_status.sh`: a stale throttle stamp with a missing cache left the 5h/7d bars stuck (the stamp blocked every fetch, so the cache never populated). Now a cold cache fetches *first* and stamps *second*, bypassing the throttle, and renders `unknown` instead of a misleading `0%` until real usage data is cached. Reset-time/extra-usage parsing is skipped when no data is cached, avoiding `date: invalid date` errors on the unknown path.
 
 ## [2026-07-16]
 

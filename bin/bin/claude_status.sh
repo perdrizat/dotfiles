@@ -102,12 +102,6 @@ else
 fi
 
 # --- 5. PARSE API STATS ---
-curr_util=$(echo "$data" | jq -r '.five_hour.utilization // 0')
-week_util=$(echo "$data" | jq -r '.seven_day.utilization // 0')
-
-curr_pct=$(echo "$curr_util" | xargs printf "%.0f")
-week_pct=$(echo "$week_util" | xargs printf "%.0f")
-
 # Round to nearest 10 minutes: (timestamp + 300) / 600 * 600
 round_to_10min() {
     local ts=$1
@@ -116,18 +110,27 @@ round_to_10min() {
     date -d @"$rounded" +"$fmt"
 }
 
-reset_curr=$(round_to_10min "$(date -d "$(echo "$data" | jq -r '.five_hour.resets_at // now')" +%s)" "%H:%M")
-reset_week=$(round_to_10min "$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +%s)" "%m/%d %H:%M")
+# Only parse when we actually have a cached payload. With data='{}' the
+# `resets_at // now` fallback yields jq's float epoch, which `date -d` rejects.
+if (( have_usage )); then
+    curr_util=$(echo "$data" | jq -r '.five_hour.utilization // 0')
+    week_util=$(echo "$data" | jq -r '.seven_day.utilization // 0')
+    curr_pct=$(echo "$curr_util" | xargs printf "%.0f")
+    week_pct=$(echo "$week_util" | xargs printf "%.0f")
 
-extra_enabled=$(echo "$data" | jq -r '.extra_usage.is_enabled // false')
-if [ "$extra_enabled" = "true" ]; then
-    used_cents=$(echo "$data" | jq -r '.extra_usage.used_credits // 0')
-    limit_cents=$(echo "$data" | jq -r '.extra_usage.monthly_limit // 0')
-    used_dollars=$(echo "scale=2; $used_cents / 100" | bc -l)
-    limit_dollars=$(echo "$limit_cents / 100" | bc)
-    extra_display=$(printf "\$%s/\$%s" "$used_dollars" "$limit_dollars")
-else
-    extra_display="disabled"
+    reset_curr=$(round_to_10min "$(date -d "$(echo "$data" | jq -r '.five_hour.resets_at // now')" +%s)" "%H:%M")
+    reset_week=$(round_to_10min "$(date -d "$(echo "$data" | jq -r '.seven_day.resets_at // now')" +%s)" "%m/%d %H:%M")
+
+    extra_enabled=$(echo "$data" | jq -r '.extra_usage.is_enabled // false')
+    if [ "$extra_enabled" = "true" ]; then
+        used_cents=$(echo "$data" | jq -r '.extra_usage.used_credits // 0')
+        limit_cents=$(echo "$data" | jq -r '.extra_usage.monthly_limit // 0')
+        used_dollars=$(echo "scale=2; $used_cents / 100" | bc -l)
+        limit_dollars=$(echo "$limit_cents / 100" | bc)
+        extra_display=$(printf "\$%s/\$%s" "$used_dollars" "$limit_dollars")
+    else
+        extra_display="disabled"
+    fi
 fi
 
 # --- 6. RENDER ---
@@ -152,8 +155,8 @@ printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}conte
     "$MODEL_NAME" "$used_ctx_k" "$CONTEXT_DISPLAY" "$ctx_pct_int" "$THINK_LABEL" "$EFFORT"
 
 # Line 2: Global API status
-extra_color=$(active_color "$extra_enabled")
 if (( have_usage )); then
+    extra_color=$(active_color "$extra_enabled")
     printf "${GRAY}5h:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}7d:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
         "$(draw_dots "$curr_pct")" "$reset_curr" "$(draw_dots "$week_pct")" "$reset_week" "$extra_display"
 else
