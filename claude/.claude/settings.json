@@ -35,6 +35,9 @@
     "type": "command",
     "command": "bash ~/bin/claude_status.sh"
   },
+  "spinnerTipsEnabled": false,
+  "awaySummaryEnabled": false,
+  "feedbackSurveyRate": 0,
   "terminalTitleFromRename": true,
   "autoMemoryEnabled": true,
   "remoteControlAtStartup": true,

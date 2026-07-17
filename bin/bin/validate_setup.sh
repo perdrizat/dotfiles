@@ -136,7 +136,13 @@ print_header "Dotfiles Repository"
 
 if [ -d "$DOTFILES_DIR/.git" ]; then
     cd "$DOTFILES_DIR"
-    git fetch --quiet 2>/dev/null || true
+    # Contact the server (which may prompt for authentication) only when our last
+    # fetch is stale — FETCH_HEAD's mtime records the last successful fetch. Within
+    # 24h, compare against the already-fetched origin/main instead of hitting the network.
+    fetch_head="$DOTFILES_DIR/.git/FETCH_HEAD"
+    if [ ! -f "$fetch_head" ] || [ $(( $(date +%s) - $(stat -c %Y "$fetch_head") )) -ge 86400 ]; then
+        git fetch --quiet 2>/dev/null || true
+    fi
     local_head=$(git rev-parse HEAD 2>/dev/null)
     remote_head=$(git rev-parse origin/main 2>/dev/null || echo "")
     if [ -n "$remote_head" ] && [ "$local_head" != "$remote_head" ]; then

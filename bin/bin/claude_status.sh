@@ -9,8 +9,9 @@ fi
 
 CRED_FILE="$HOME/.claude/.credentials.json"
 SETTINGS_FILE="$HOME/.claude/settings.json"
-CACHE_FILE="/tmp/claude_usage_cache.json"
-CACHE_TTL=60
+CACHE_FILE="/tmp/claude_usage_cache.json"   # holds the last *successful* usage payload
+STAMP_FILE="/tmp/claude_usage_last_fetch"   # mtime = last fetch attempt; throttles retries
+CACHE_TTL=300
 
 # --- 2. PARSE SESSION STATE ---
 MODEL_NAME=$(echo "$INPUT_JSON" | jq -r '.model.display_name // "?"')
@@ -60,14 +61,28 @@ active_color() {
 TOKEN=$(jq -r '.claudeAiOauth.accessToken // empty' "$CRED_FILE")
 [[ -z "$TOKEN" ]] && echo "Claude Offline" && exit 0
 
-if [[ -f "$CACHE_FILE" ]] && [[ $(($(date +%s) - $(stat -c %Y "$CACHE_FILE"))) -lt $CACHE_TTL ]]; then
-    data=$(cat "$CACHE_FILE")
-else
-    data=$(curl -s -H "Authorization: Bearer $TOKEN" \
+# Refresh at most once per CACHE_TTL, and only ever overwrite the cache with a
+# *valid* payload. The usage endpoint rate-limits hard (HTTP 429 with a
+# multi-minute retry-after) when polled too often — e.g. several tmux panes each
+# rendering this line. Caching an error response then let the jq `// 0`
+# fallbacks fire, silently blanking the 5h/7d bars to 0%. Now we keep serving
+# the last good numbers and skip the update whenever the fetch isn't valid.
+now=$(date +%s)
+last_attempt=0
+[[ -f "$STAMP_FILE" ]] && last_attempt=$(stat -c %Y "$STAMP_FILE")
+if (( now - last_attempt >= CACHE_TTL )); then
+    touch "$STAMP_FILE"   # record the attempt up-front so concurrent panes don't all fetch
+    resp=$(curl -s -H "Authorization: Bearer $TOKEN" \
          -H "anthropic-beta: oauth-2025-04-20" \
          https://api.anthropic.com/api/oauth/usage)
-    echo "$data" > "$CACHE_FILE"
+    # Overwrite only on a real usage payload (has .five_hour.utilization); a 429
+    # error body lacks it, so the previous good cache survives the rate limit.
+    if echo "$resp" | jq -e '.five_hour.utilization != null' >/dev/null 2>&1; then
+        echo "$resp" > "$CACHE_FILE"
+    fi
 fi
+data=$(cat "$CACHE_FILE" 2>/dev/null)
+[[ -z "$data" ]] && data='{}'
 
 # --- 5. PARSE API STATS ---
 curr_util=$(echo "$data" | jq -r '.five_hour.utilization // 0')

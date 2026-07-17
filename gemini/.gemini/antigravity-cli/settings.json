@@ -14,6 +14,7 @@
       "command(docker ps)",
       "command(echo)",
       "command(find)",
+      "command(git checkout)",
       "command(git diff)",
       "command(git log)",
       "command(git status)",
