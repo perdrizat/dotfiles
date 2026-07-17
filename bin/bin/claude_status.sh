@@ -184,13 +184,50 @@ draw_dots() {
     echo -ne "$bar"
 }
 
-# Line 1: Session-local values
+# Strip ANSI SGR sequences (\e[...m) so a line's visible width can be measured.
+strip_ansi() {
+    local s=$1 out=""
+    while [[ $s == *$'\e['* ]]; do
+        out+="${s%%$'\e['*}"
+        s="${s#*$'\e['}"
+        s="${s#*m}"
+    done
+    printf '%s' "$out$s"
+}
+
+# Right-edge account label: "<email> · <Type>". Email comes from ~/.claude.json;
+# the subscription type is already parsed into ACCOUNT_KEY (Pro/Max/Team/…).
+acct_email=$(jq -r '.oauthAccount.emailAddress // empty' "$HOME/.claude.json" 2>/dev/null)
+acct_type=""; [[ "$ACCOUNT_KEY" != "default" ]] && acct_type="${ACCOUNT_KEY^}"
+acct=""; acct_plain=""
+if [[ -n "$acct_email" && -n "$acct_type" ]]; then
+    acct=$(printf "${GRAY}%s · ${RESET}${CYAN}%s${RESET}" "$acct_email" "$acct_type"); acct_plain="$acct_email · $acct_type"
+elif [[ -n "$acct_email" ]]; then
+    acct=$(printf "${GRAY}%s${RESET}" "$acct_email"); acct_plain="$acct_email"
+elif [[ -n "$acct_type" ]]; then
+    acct=$(printf "${CYAN}%s${RESET}" "$acct_type"); acct_plain="$acct_type"
+fi
+
+# Line 1: Session-local values, with the account label right-aligned via $COLUMNS
+# (Claude Code exports COLUMNS; there is no width field in the stdin JSON). Drop
+# the label when COLUMNS is unset or the line is too narrow to fit it.
 ctx_pct_int=$(printf "%.0f" "$CONTEXT_USED_PCT")
 ctx_color=$(pct_color "$ctx_pct_int")
 think_color=$(active_color "$THINK_LABEL")
 effort_color=$(active_color "$EFFORT")
-printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}context:${RESET} ${ctx_color}%d%% used${RESET} ${GRAY}|${RESET} ${GRAY}Thinking:${RESET} ${think_color}%s${RESET} ${GRAY}|${RESET} ${GRAY}Effort:${RESET} ${effort_color}%s${RESET}\n" \
-    "$MODEL_NAME" "$used_ctx_k" "$CONTEXT_DISPLAY" "$ctx_pct_int" "$THINK_LABEL" "$EFFORT"
+line1=$(printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}context:${RESET} ${ctx_color}%d%% used${RESET} ${GRAY}|${RESET} ${GRAY}Thinking:${RESET} ${think_color}%s${RESET} ${GRAY}|${RESET} ${GRAY}Effort:${RESET} ${effort_color}%s${RESET}" \
+    "$MODEL_NAME" "$used_ctx_k" "$CONTEXT_DISPLAY" "$ctx_pct_int" "$THINK_LABEL" "$EFFORT")
+# Leave a small right margin: Claude Code truncates a status line that fills the
+# full width (it appends an ellipsis, which would eat the label), so end a few
+# columns short of $COLUMNS to keep the whole label visible.
+cols=${COLUMNS:-0}
+right_margin=4
+if [[ -n "$acct" ]] && (( cols > right_margin )); then
+    l1_plain=$(strip_ansi "$line1")
+    pad=$(( cols - right_margin - ${#l1_plain} - ${#acct_plain} ))
+    (( pad >= 1 )) && line1="$line1$(printf '%*s' "$pad" '')$acct"
+fi
+printf '%s\n' "$line1"
 
 # Line 2: Global API status
 if (( have_usage )); then

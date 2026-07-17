@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `bin/bin/claude_status.sh`: when the usage endpoint returns HTTP 429, the 5h/7d fields show an amber `rate limited` instead of a generic `unknown`.
 - `bin/bin/claude_status.sh`: honor the 429 `retry-after` header — record the deadline in a backoff file and make no further requests until it passes, so a rate-limited box stops re-tripping (and thereby indefinitely prolonging) its own limit.
+- `bin/bin/claude_status.sh`: line 1 shows the account as `<email> · <Pro/Max/Team>` right-aligned via `$COLUMNS` (a few columns short of the edge so Claude Code's status-line truncation can't eat it), dropped gracefully when the terminal is too narrow or `$COLUMNS` is unset.
 
 ### Changed
 
