@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `bin/bin/claude_status.sh`: when the usage endpoint returns HTTP 429, the 5h/7d fields show an amber `rate limited` instead of a generic `unknown`.
-- `bin/bin/claude_status.sh`: honor the 429 `retry-after` header — record the deadline in `/tmp/claude_usage_backoff` and make no further requests until it passes, so a rate-limited box stops re-tripping (and thereby indefinitely prolonging) its own limit.
+- `bin/bin/claude_status.sh`: honor the 429 `retry-after` header — record the deadline in a backoff file and make no further requests until it passes, so a rate-limited box stops re-tripping (and thereby indefinitely prolonging) its own limit.
 
 ### Changed
 
@@ -19,7 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
-- `bin/bin/claude_status.sh`: a stale throttle stamp with a missing cache left the 5h/7d bars stuck (the stamp blocked every fetch, so the cache never populated). Now a cold cache fetches *first* and stamps *second*, bypassing the throttle, and renders `unknown` instead of a misleading `0%` until real usage data is cached. Reset-time/extra-usage parsing is skipped when no data is cached, avoiding `date: invalid date` errors on the unknown path.
+- `bin/bin/claude_status.sh`: a cold cache renders `unknown` instead of a misleading `0%` until real usage data is cached; reset-time/extra-usage parsing is skipped when no data is cached, avoiding `date: invalid date` errors on the unknown path.
+- `bin/bin/claude_status.sh`: usage stats recover automatically after a rate limit — scope the cache/throttle/backoff files per account (`subscriptionType`) so switching accounts no longer inherits another account's 429 backoff (which left a never-limited team account stuck showing "rate limited"), cap the 429 backoff at 10 min so a long `retry-after` can't pin the banner past recovery, and gate cold-cache fetches with the throttle stamp so a non-429 failure can't re-fetch on every render.
 
 ## [2026-07-16]
 

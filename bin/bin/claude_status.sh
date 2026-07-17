@@ -9,9 +9,16 @@ fi
 
 CRED_FILE="$HOME/.claude/.credentials.json"
 SETTINGS_FILE="$HOME/.claude/settings.json"
-CACHE_FILE="/tmp/claude_usage_cache.json"   # holds the last *successful* usage payload
-STAMP_FILE="/tmp/claude_usage_last_fetch"   # mtime = last fetch attempt; throttles retries
-BACKOFF_FILE="/tmp/claude_usage_backoff"    # epoch until which a 429 retry-after says don't poll
+# Scope the usage cache / throttle / backoff per account (subscriptionType) so
+# switching accounts — e.g. personal <-> team — starts clean instead of inheriting
+# the other account's cached bars or, worse, its 429 backoff window. Sharing one
+# set of /tmp files is why a team account still showed "rate limited" after a
+# personal-account 429, recoverable only by deleting the files by hand.
+ACCOUNT_KEY=$(jq -r '.claudeAiOauth.subscriptionType // "default"' "$CRED_FILE" 2>/dev/null)
+[[ "$ACCOUNT_KEY" =~ ^[A-Za-z0-9_-]+$ ]] || ACCOUNT_KEY="default"
+CACHE_FILE="/tmp/claude_usage_${ACCOUNT_KEY}_cache.json"   # last *successful* usage payload
+STAMP_FILE="/tmp/claude_usage_${ACCOUNT_KEY}_last_fetch"   # mtime = last fetch attempt; throttles retries
+BACKOFF_FILE="/tmp/claude_usage_${ACCOUNT_KEY}_backoff"    # epoch until which a 429 retry-after says don't poll
 CACHE_TTL=300
 
 # --- 2. PARSE SESSION STATE ---
@@ -91,15 +98,25 @@ fetch_and_cache() {
     if echo "$body" | jq -e '.five_hour.utilization != null' >/dev/null 2>&1; then
         echo "$body" > "$CACHE_FILE"
         rm -f "$BACKOFF_FILE"
-    elif [[ "$LAST_HTTP" == "429" && "$retry" =~ ^[0-9]+$ ]]; then
-        echo $(( $(date +%s) + retry )) > "$BACKOFF_FILE"
+    elif [[ "$LAST_HTTP" == "429" ]]; then
+        # Back off, but cap the wait so we re-probe within ~10 min even when the
+        # server asks for longer — otherwise a long retry-after pins the banner to
+        # "rate limited" long after the limit actually lifts, with nothing probing
+        # to notice. Default to CACHE_TTL when retry-after is absent or non-numeric
+        # (e.g. an HTTP-date form), so a 429 still backs off rather than hammering.
+        local wait=$CACHE_TTL
+        [[ "$retry" =~ ^[0-9]+$ ]] && wait="$retry"
+        (( wait > 600 )) && wait=600
+        echo $(( $(date +%s) + wait )) > "$BACKOFF_FILE"
     fi
 }
 
 # Fetch policy. While inside a recorded 429 retry-after window, never poll —
-# extra requests only keep the limit tripped. Otherwise fetch a cold cache
-# immediately, and throttle warm refreshes to one shared fetch per CACHE_TTL,
-# stamped up front so concurrent panes don't all fetch at once.
+# extra requests only keep the limit tripped (re-arming its acceleration limit).
+# Otherwise attempt at most once per CACHE_TTL, stamped up front so concurrent
+# panes don't all fetch at once; the very first run (no stamp yet) fetches
+# immediately. This single throttle covers cold and warm caches alike, so a
+# persistently failing fetch can't hammer the endpoint on every render.
 now=$(date +%s)
 last_attempt=0
 [[ -f "$STAMP_FILE" ]] && last_attempt=$(stat -c %Y "$STAMP_FILE")
@@ -109,10 +126,7 @@ backoff_until=0
 
 if (( now < backoff_until )); then
     LAST_HTTP=429            # still in the retry-after window; show rate limited if cold
-elif [[ ! -f "$CACHE_FILE" ]]; then
-    fetch_and_cache
-    touch "$STAMP_FILE"
-elif (( now - last_attempt >= CACHE_TTL )); then
+elif (( last_attempt == 0 || now - last_attempt >= CACHE_TTL )); then
     touch "$STAMP_FILE"
     fetch_and_cache
 fi
