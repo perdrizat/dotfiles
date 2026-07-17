@@ -16,12 +16,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Changed
 
 - `tmux/.tmux.conf`: window labels now read `index:command@repo` (e.g. `1:claude@dotfiles`) — the active pane's command plus its working-dir basename — instead of just the command.
+- `tmux/.tmux.conf`: delay the second window's `claude` by 10s (`sleep 10 &&`) on session start so the two statuslines don't hit the usage API simultaneously — the first fetch sets the shared throttle stamp before the second renders, avoiding a boot-time 429 burst.
 - `agents/AGENTS.md`: strengthen the scratch-file rule — `<repo>/.tmp` is the *only* scratch location and explicitly overrides any harness-provided `/tmp` "scratchpad"; never fall back to `/tmp`, `/var/tmp`, or `$TMPDIR`.
 
 ### Fixed
 
 - `bin/bin/claude_status.sh`: a cold cache renders `unknown` instead of a misleading `0%` until real usage data is cached; reset-time/extra-usage parsing is skipped when no data is cached, avoiding `date: invalid date` errors on the unknown path.
-- `bin/bin/claude_status.sh`: usage stats recover automatically after a rate limit — scope the cache/throttle/backoff files per account (`subscriptionType`) so switching accounts no longer inherits another account's 429 backoff (which left a never-limited team account stuck showing "rate limited"), cap the 429 backoff at 10 min so a long `retry-after` can't pin the banner past recovery, and gate cold-cache fetches with the throttle stamp so a non-429 failure can't re-fetch on every render.
+- `bin/bin/claude_status.sh`: usage stats recover automatically after a rate limit — scope the cache/throttle/backoff files per account (`subscriptionType`) so switching accounts no longer inherits another account's 429 backoff (which left a never-limited team account stuck showing "rate limited"), honor the server's full `retry-after` (probing again before it expires only re-arms the limit's acceleration penalty, which kept a box pinned at "rate limited"), and gate cold-cache fetches with the throttle stamp so a non-429 failure can't re-fetch on every render.
 
 ## [2026-07-16]
 

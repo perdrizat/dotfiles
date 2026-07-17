@@ -99,14 +99,13 @@ fetch_and_cache() {
         echo "$body" > "$CACHE_FILE"
         rm -f "$BACKOFF_FILE"
     elif [[ "$LAST_HTTP" == "429" ]]; then
-        # Back off, but cap the wait so we re-probe within ~10 min even when the
-        # server asks for longer — otherwise a long retry-after pins the banner to
-        # "rate limited" long after the limit actually lifts, with nothing probing
-        # to notice. Default to CACHE_TTL when retry-after is absent or non-numeric
-        # (e.g. an HTTP-date form), so a 429 still backs off rather than hammering.
+        # Honor the server's retry-after in full. Probing again before it expires
+        # only re-arms the limit (its acceleration penalty resets the clock) — that
+        # is exactly what pinned a box at "rate limited" indefinitely. Default to
+        # CACHE_TTL when retry-after is absent or non-numeric (e.g. an HTTP-date
+        # form) so a 429 still backs off rather than hammering.
         local wait=$CACHE_TTL
         [[ "$retry" =~ ^[0-9]+$ ]] && wait="$retry"
-        (( wait > 600 )) && wait=600
         echo $(( $(date +%s) + wait )) > "$BACKOFF_FILE"
     fi
 }
