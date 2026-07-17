@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-07-17]
 
+### Added
+
+- `bin/bin/claude_status.sh`: when the usage endpoint returns HTTP 429, the 5h/7d fields show an amber `rate limited` instead of a generic `unknown`.
+- `bin/bin/claude_status.sh`: honor the 429 `retry-after` header — record the deadline in `/tmp/claude_usage_backoff` and make no further requests until it passes, so a rate-limited box stops re-tripping (and thereby indefinitely prolonging) its own limit.
+
 ### Changed
 
 - `agents/AGENTS.md`: strengthen the scratch-file rule — `<repo>/.tmp` is the *only* scratch location and explicitly overrides any harness-provided `/tmp` "scratchpad"; never fall back to `/tmp`, `/var/tmp`, or `$TMPDIR`.

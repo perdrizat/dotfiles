@@ -11,6 +11,7 @@ CRED_FILE="$HOME/.claude/.credentials.json"
 SETTINGS_FILE="$HOME/.claude/settings.json"
 CACHE_FILE="/tmp/claude_usage_cache.json"   # holds the last *successful* usage payload
 STAMP_FILE="/tmp/claude_usage_last_fetch"   # mtime = last fetch attempt; throttles retries
+BACKOFF_FILE="/tmp/claude_usage_backoff"    # epoch until which a 429 retry-after says don't poll
 CACHE_TTL=300
 
 # --- 2. PARSE SESSION STATE ---
@@ -61,30 +62,54 @@ active_color() {
 TOKEN=$(jq -r '.claudeAiOauth.accessToken // empty' "$CRED_FILE")
 [[ -z "$TOKEN" ]] && echo "Claude Offline" && exit 0
 
-# Query the usage endpoint and cache it. Overwrite only on a real usage payload
-# (has .five_hour.utilization); a 429 error body lacks it, so the previous good
-# cache survives the rate limit.
+# LAST_HTTP: HTTP status of the most recent fetch this run (empty if no fetch
+# happened), so the render can distinguish a rate limit (429) from other misses.
+LAST_HTTP=""
+# Query the usage endpoint and cache it. Reads status + retry-after from the
+# headers (curl -D -). Overwrites the cache only on a real usage payload (a 429
+# body lacks .five_hour.utilization, so the last good cache survives). On a 429
+# it records the server's retry-after deadline in BACKOFF_FILE so we stop polling
+# until then — hitting the endpoint again during the penalty only keeps it
+# tripped (its "acceleration limit" re-arms), which is what left a box stuck.
 fetch_and_cache() {
-    local resp
-    resp=$(curl -s -H "Authorization: Bearer $TOKEN" \
+    local resp line body="" in_body=0 retry=""
+    resp=$(curl -s -D - -H "Authorization: Bearer $TOKEN" \
          -H "anthropic-beta: oauth-2025-04-20" \
          https://api.anthropic.com/api/oauth/usage)
-    if echo "$resp" | jq -e '.five_hour.utilization != null' >/dev/null 2>&1; then
-        echo "$resp" > "$CACHE_FILE"
+    while IFS= read -r line; do
+        line="${line%$'\r'}"                       # strip trailing CR
+        if (( in_body )); then
+            body+="$line"$'\n'
+        elif [[ -z "$line" ]]; then
+            in_body=1                              # blank line separates headers from body
+        elif [[ "$line" == HTTP/* ]]; then
+            line="${line#* }"; LAST_HTTP="${line%% *}"
+        elif [[ "${line,,}" == retry-after:* ]]; then
+            retry="${line#*:}"; retry="${retry//[[:space:]]/}"
+        fi
+    done <<< "$resp"
+    if echo "$body" | jq -e '.five_hour.utilization != null' >/dev/null 2>&1; then
+        echo "$body" > "$CACHE_FILE"
+        rm -f "$BACKOFF_FILE"
+    elif [[ "$LAST_HTTP" == "429" && "$retry" =~ ^[0-9]+$ ]]; then
+        echo $(( $(date +%s) + retry )) > "$BACKOFF_FILE"
     fi
 }
 
-# The usage endpoint rate-limits hard (HTTP 429) when polled too often — e.g.
-# several tmux panes each rendering this line — so warm refreshes are throttled
-# to one shared fetch per CACHE_TTL, stamped up front so concurrent panes don't
-# all fetch. But when the cache file is *missing* (cold /tmp, or a stale stamp
-# left by a failed attempt) the throttle must not gate the fetch, or the bars
-# stay unknown until the stamp ages out. So on a cold cache we reverse the
-# order: query first, stamp second, ignoring the throttle entirely.
+# Fetch policy. While inside a recorded 429 retry-after window, never poll —
+# extra requests only keep the limit tripped. Otherwise fetch a cold cache
+# immediately, and throttle warm refreshes to one shared fetch per CACHE_TTL,
+# stamped up front so concurrent panes don't all fetch at once.
 now=$(date +%s)
 last_attempt=0
 [[ -f "$STAMP_FILE" ]] && last_attempt=$(stat -c %Y "$STAMP_FILE")
-if [[ ! -f "$CACHE_FILE" ]]; then
+backoff_until=0
+[[ -f "$BACKOFF_FILE" ]] && backoff_until=$(cat "$BACKOFF_FILE" 2>/dev/null)
+[[ "$backoff_until" =~ ^[0-9]+$ ]] || backoff_until=0
+
+if (( now < backoff_until )); then
+    LAST_HTTP=429            # still in the retry-after window; show rate limited if cold
+elif [[ ! -f "$CACHE_FILE" ]]; then
     fetch_and_cache
     touch "$STAMP_FILE"
 elif (( now - last_attempt >= CACHE_TTL )); then
@@ -159,6 +184,8 @@ if (( have_usage )); then
     extra_color=$(active_color "$extra_enabled")
     printf "${GRAY}5h:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}7d:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} ${extra_color}%s${RESET}\n" \
         "$(draw_dots "$curr_pct")" "$reset_curr" "$(draw_dots "$week_pct")" "$reset_week" "$extra_display"
+elif [[ "$LAST_HTTP" == "429" ]]; then
+    printf "${GRAY}5h:${RESET} ${AMBER}rate limited${RESET} ${GRAY}|${RESET} ${GRAY}7d:${RESET} ${AMBER}rate limited${RESET} ${GRAY}|${RESET} ${GRAY}Extra:${RESET} unknown\n"
 else
     printf "${GRAY}5h:${RESET} unknown ${GRAY}|${RESET} ${GRAY}7d:${RESET} unknown ${GRAY}|${RESET} ${GRAY}Extra:${RESET} unknown\n"
 fi
