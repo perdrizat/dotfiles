@@ -4,7 +4,8 @@
 [init]
 	defaultBranch = main
 [pull]
-	rebase = true
+	rebase = false
+	ff = only
 [core]
 	editor = vim
 [alias]
