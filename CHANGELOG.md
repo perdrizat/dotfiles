@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- Claude settings: pin `includeCoAuthoredBy: false` in the template, and extend setup.sh's Claude forward-merge to overlay it onto existing `~/.claude/settings.json` (previously only `permissions.allow` was merged, so template policy keys never propagated to already-provisioned machines). `validate_setup.sh` now requires the key. `model` stays locally customizable.
+- `bin/bin/validate_setup.sh`: new "Default Repo" check (WSL only) — flags a missing/invalid `~/$WSL_DISTRO_NAME`, with a manual fix hint (setup.sh can't know which repo to link).
+
+### Changed
+
+- `tmux/.tmux.conf`: window 1 now opens in the machine's default repo `~/$WSL_DISTRO_NAME` (tmux expands `${...}` from its environment) instead of the launch dir; falls back gracefully when the path is absent.
+
+### Fixed
+
+- `bin/bin/validate_setup.sh`: the Claude/agy required-key check used `jq -e ".$key"`, whose exit status follows the value — so a legitimately `false` key (`includeCoAuthoredBy`) was reported missing. Now tests presence with `has()`.
+
 ## [2026-07-17]
 
 ### Added

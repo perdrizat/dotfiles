@@ -310,11 +310,14 @@ if [ -L "$HOME/.claude/settings.json" ]; then
 elif [ -f "$HOME/.claude/settings.json" ]; then
     # Check for required top-level keys (except model, which is user-configurable)
     local_settings="$HOME/.claude/settings.json"
-    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup")
+    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup" "includeCoAuthoredBy")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do
-        if ! jq -e ".$key" "$local_settings" >/dev/null 2>&1; then
+        # Test presence with has(), not `.$key`: `jq -e` keys its exit status off the output
+        # value, so a legitimately `false`/`null` value (e.g. includeCoAuthoredBy) would look
+        # absent. has() reflects only whether the key exists, regardless of its value.
+        if ! jq -e "has(\"$key\")" "$local_settings" >/dev/null 2>&1; then
             missing_keys+=("$key")
         fi
     done
@@ -365,7 +368,8 @@ elif [ -f "$AGY_SETTINGS" ]; then
     missing_keys=()
 
     for key in "${required_keys[@]}"; do
-        if ! jq -e ".$key" "$AGY_SETTINGS" >/dev/null 2>&1; then
+        # has() tests presence regardless of value — see the Claude check above for why.
+        if ! jq -e "has(\"$key\")" "$AGY_SETTINGS" >/dev/null 2>&1; then
             missing_keys+=("$key")
         fi
     done
@@ -493,6 +497,30 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
         missing_items+=("wsl-ipv6-pin")
     else
         print_row "IPv6 addr pin" "${GREEN}✓ None${NC}" "no static pin to blackhole"
+    fi
+fi
+
+# --- Default Repo (tmux window 1) ---
+# tmux's session-created hook opens window 1 in ~/$WSL_DISTRO_NAME, the machine's default
+# repo. Flag a missing/invalid path so the layout doesn't silently fall back to the launch
+# dir. setup.sh can't create it (it doesn't know which repo you want), so the fix is manual.
+if [ -n "${WSL_DISTRO_NAME:-}" ]; then
+    print_header "Default Repo"
+    default_repo="$HOME/$WSL_DISTRO_NAME"
+    if [ -d "$default_repo" ]; then
+        # -d follows symlinks, so a symlink-to-directory passes too
+        if [ -L "$default_repo" ]; then
+            print_row "~/$WSL_DISTRO_NAME" "${GREEN}✓ Present${NC}" "→ $(readlink "$default_repo")"
+        else
+            print_row "~/$WSL_DISTRO_NAME" "${GREEN}✓ Present${NC}" "directory"
+        fi
+    elif [ -e "$default_repo" ] || [ -L "$default_repo" ]; then
+        # Exists but isn't a directory: a regular file, or a dangling symlink
+        print_row "~/$WSL_DISTRO_NAME" "${RED}x Not a directory${NC}" "want a dir or symlink-to-dir"
+        missing_items+=("default-repo")
+    else
+        print_row "~/$WSL_DISTRO_NAME" "${YELLOW}~ Missing${NC}" "tmux window 1 opens here"
+        missing_items+=("default-repo")
     fi
 fi
 
@@ -809,6 +837,10 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         agy-settings-symlink)
             printf "\n  ${CYAN}# Convert agy settings.json from symlink to local file${NC}\n"
             echo "  rm ~/.gemini/antigravity-cli/settings.json && ( cd ~/dotfiles && bash setup.sh )"
+            ;;
+        default-repo)
+            printf "\n  ${CYAN}# Create the default repo dir tmux window 1 opens in (dir or symlink):${NC}\n"
+            echo "  mkdir -p ~/$WSL_DISTRO_NAME   # or: ln -s /path/to/your/repo ~/$WSL_DISTRO_NAME"
             ;;
     esac
 done

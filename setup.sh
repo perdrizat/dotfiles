@@ -177,8 +177,12 @@ if [[ "$INSTALL_CLAUDE" == true ]]; then
         cp "$CLAUDE_TEMPLATE" "$CLAUDE_SETTINGS"
         echo "Deployed settings.json template to ~/.claude/settings.json"
     else
-        merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" "$ALLOWS_UNION" \
-            "Merged template allows into ~/.claude/settings.json"
+        # Allows union + enforce policy keys the template pins (only when present, so a missing
+        # template key never injects null). `model` is deliberately excluded — it stays locally
+        # customizable; every other key here is a policy we want consistent across machines.
+        merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" \
+            "$ALLOWS_UNION * (.[1] | {includeCoAuthoredBy} | with_entries(select(.value != null)))" \
+            "Merged template allows + policy keys into ~/.claude/settings.json"
     fi
 fi
 

@@ -41,5 +41,6 @@
   "terminalTitleFromRename": true,
   "autoMemoryEnabled": true,
   "remoteControlAtStartup": true,
+  "includeCoAuthoredBy": false,
   "model": "opus"
 }
