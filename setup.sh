@@ -181,7 +181,7 @@ if [[ "$INSTALL_CLAUDE" == true ]]; then
         # template key never injects null). `model` is deliberately excluded — it stays locally
         # customizable; every other key here is a policy we want consistent across machines.
         merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" \
-            "$ALLOWS_UNION * (.[1] | {includeCoAuthoredBy} | with_entries(select(.value != null)))" \
+            "$ALLOWS_UNION * (.[1] | {includeCoAuthoredBy, awaySummaryEnabled, spinnerTipsEnabled, feedbackSurveyRate} | with_entries(select(.value != null)))" \
             "Merged template allows + policy keys into ~/.claude/settings.json"
     fi
 fi

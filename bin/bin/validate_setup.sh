@@ -310,7 +310,7 @@ if [ -L "$HOME/.claude/settings.json" ]; then
 elif [ -f "$HOME/.claude/settings.json" ]; then
     # Check for required top-level keys (except model, which is user-configurable)
     local_settings="$HOME/.claude/settings.json"
-    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup" "includeCoAuthoredBy")
+    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup" "includeCoAuthoredBy" "awaySummaryEnabled" "spinnerTipsEnabled" "feedbackSurveyRate")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do
@@ -788,7 +788,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;
@@ -825,10 +825,6 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         wsl-ipv6-pin)
             printf "\n  ${CYAN}# Remove the static IPv6 pin from /etc/wsl.conf, then: wsl.exe --shutdown${NC}\n"
             echo "  sudo sed -i '/ip -6 addr/d' /etc/wsl.conf  # then reopen the shell"
-            ;;
-        claude-settings)
-            printf "\n  ${CYAN}# Deploy Claude Code settings${NC}\n"
-            echo "  cp ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json"
             ;;
         claude-settings-symlink)
             printf "\n  ${CYAN}# Convert settings.json from symlink to copy${NC}\n"

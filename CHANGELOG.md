@@ -6,9 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-07-25]
+
 ### Added
 
-- Claude settings: pin `includeCoAuthoredBy: false` in the template, and extend setup.sh's Claude forward-merge to overlay it onto existing `~/.claude/settings.json` (previously only `permissions.allow` was merged, so template policy keys never propagated to already-provisioned machines). `validate_setup.sh` now requires the key. `model` stays locally customizable.
+- Claude settings: pin policy keys (`includeCoAuthoredBy: false`, `awaySummaryEnabled: false`, `spinnerTipsEnabled: false`, `feedbackSurveyRate: 0`) in the template, and extend setup.sh's Claude forward-merge to overlay them onto existing `~/.claude/settings.json` (previously only `permissions.allow` merged, so template policy keys never propagated to already-provisioned machines). `validate_setup.sh` now requires them. `model` stays locally customizable.
 - `bin/bin/validate_setup.sh`: new "Default Repo" check (WSL only) — flags a missing/invalid `~/$WSL_DISTRO_NAME`, with a manual fix hint (setup.sh can't know which repo to link).
 
 ### Changed
@@ -17,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Fixed
 
+- `bin/bin/validate_setup.sh`: the `claude-settings` finding now routes to the idempotent `bash setup.sh` (non-destructive jq merge) instead of a `cp` that overwrote the whole file — the old `cp` dropped local-only keys (`enabledPlugins`, `effortLevel`, `tui`).
 - `bin/bin/validate_setup.sh`: the Claude/agy required-key check used `jq -e ".$key"`, whose exit status follows the value — so a legitimately `false` key (`includeCoAuthoredBy`) was reported missing. Now tests presence with `has()`.
 
 ## [2026-07-17]
