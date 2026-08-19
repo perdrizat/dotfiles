@@ -7,6 +7,29 @@ for dir in ~/.local/bin ~/bin; do
 done
 export PATH
 
+# Collapse duplicate PATH entries, keeping the first occurrence so precedence is
+# unchanged. Needed because third-party installers (fnm, Antigravity, rustup, …) append
+# unconditional `PATH=…:$PATH` lines to ~/.bashrc and ~/.profile — files that re-run for
+# every shell — so nested login shells (terminal → tmux) multiply entries. The guard
+# above only governs our own two dirs; this cleans up after everyone else's.
+# setup.sh keeps a call to this as the last line of both startup files.
+# Empty fields are dropped: `::` or a trailing `:` means "current directory", which is a
+# security hazard and effectively always an accident.
+# Pure shell parameter expansion — no fork, and no globbing of PATH entries.
+path_dedup() {
+    local out="" seen=":" rest="$PATH" dir
+    while [ -n "$rest" ]; do
+        dir="${rest%%:*}"
+        if [ "$rest" = "$dir" ]; then rest=""; else rest="${rest#*:}"; fi
+        [ -n "$dir" ] || continue
+        case "$seen" in *":$dir:"*) continue ;; esac
+        seen="$seen$dir:"
+        out="${out:+$out:}$dir"
+    done
+    PATH="$out"
+    export PATH
+}
+
 # Fallback to vi if vim is not installed
 if command -v vim >/dev/null 2>&1; then
     export EDITOR='vim'

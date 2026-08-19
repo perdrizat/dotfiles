@@ -473,6 +473,30 @@ if [[ "$SSH_YUBIKEY" == true ]] && grep -qi microsoft /proc/version 2>/dev/null;
     bash "$DOTFILES_DIR/bin/bin/wsl_ssh_agent.sh" -q || echo "wsl_ssh_agent.sh reported issues — run it manually to finish."
 fi
 
+# --- PATH dedup call (must be the LAST line of ~/.bashrc and ~/.profile) ---
+# Third-party installers append unconditional `PATH=…:$PATH` lines to these files, and
+# both re-run for every shell, so nested login shells (terminal → tmux) multiply entries.
+# Rather than fight the installers, keep a dedup call *below* whatever they appended, and
+# move it back to the end whenever a new install has pushed it up. ~/.profile sources
+# ~/.bashrc before its own prepends, so its trailing call also backstops .bashrc drift.
+# Runs last in this script on purpose: the toolchain installers above (fnm, Claude, agy)
+# append to ~/.bashrc during this very run.
+PATH_DEDUP_MARK='# --- Dotfiles PATH dedup (keep last) ---'
+PATH_DEDUP_CALL='command -v path_dedup >/dev/null 2>&1 && path_dedup'
+for _rc in ~/.bashrc ~/.profile; do
+    [ -f "$_rc" ] || continue
+    # Already the last meaningful line? Then there is nothing to do.
+    [ "$(grep -v '^[[:space:]]*$' "$_rc" | tail -1)" = "$PATH_DEDUP_CALL" ] && continue
+    echo "Moving the PATH dedup call to the end of $_rc..."
+    # Drop any earlier copy, then re-append. Rewritten in memory and written back with a
+    # plain redirect — never mv/tmp-file, so the file keeps its inode (a symlinked or
+    # hardlinked rc file survives). The call is guarded by `command -v`, so it is a silent
+    # no-op wherever .bash_extra hasn't defined path_dedup (e.g. dash reading ~/.profile).
+    _rc_body=$(grep -vxF -e "$PATH_DEDUP_MARK" -e "$PATH_DEDUP_CALL" "$_rc")
+    printf '%s\n\n%s\n%s\n' "$_rc_body" "$PATH_DEDUP_MARK" "$PATH_DEDUP_CALL" > "$_rc"
+    NEEDS_RESTART=true
+done
+
 echo "Setup complete!"
 if [[ "$NEEDS_RESTART" == true ]]; then
     echo "Restart your shell or run"

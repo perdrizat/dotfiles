@@ -11,9 +11,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - `bin/bin/validate_setup.sh`: new "Firefox snap stub" check — reads the stub's effective priority from `apt-cache policy` and flags it when non-negative, catching the weakened state before the next overwrite rather than after.
+- `bash/.bash_extra`: `path_dedup()` — collapses duplicate `$PATH` entries keeping the first occurrence (precedence unchanged) and drops empty fields, which mean "current directory". Pure parameter expansion: no fork, no globbing of entries.
+- `setup.sh`: keeps `path_dedup` invoked as the **last** line of `~/.bashrc` and `~/.profile`, moving it back down whenever a third-party installer has appended below it. Runs last in the script, after the toolchain installers that append during the same run. Rationale: installers (fnm, Antigravity, rustup) write unconditional `PATH=…:$PATH` lines into files that re-run per shell, so nested login shells multiply entries — `~/.local/bin` had reached 7×. Since `~/.profile` sources `~/.bashrc` before its own prepends, its trailing call also backstops `.bashrc` drift.
+- `bin/bin/validate_setup.sh`: new Shell Configuration rows — the dedup call is the last line of `~/.bashrc` and `~/.profile`. Checks the files only; the running shell's `$PATH` is deliberately not inspected, since it is inherited state no re-run of `setup.sh` can change.
 
 ### Fixed
 
+- `bin/bin/validate_setup.sh`: the `gh-auth` finding printed no fix command — it routes to the manual bucket (correctly: `gh auth login` is interactive), but had no branch in the printer, so a run whose only finding was gh-auth emitted the "Fix commands" header with nothing under it and exited 1. It was the sole such gap across all 50 finding ids.
 - `setup.sh`: stop `unattended-upgrades` reinstalling the Firefox snap over the Mozilla deb. Ubuntu's `firefox`/`firefox-esr` stubs carry a `1:` epoch that outranks every Mozilla version, so the old `Pin-Priority: 1000` only won on the priority axis and u-u — which allows the plain release pocket by default — swapped the snap back in (observed 2026-07-15). The pin file now also negative-pins the Ubuntu-origin stubs (`Pin-Priority: -1`), removing them from consideration entirely; existing machines are repaired in place on the next run.
 
 ## [2026-07-25]

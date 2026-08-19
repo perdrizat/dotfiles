@@ -206,6 +206,20 @@ else
     missing_items+=("bashrc-loader")
 fi
 
+# The dedup call has to be the LAST line of each startup file: third-party installers
+# append their own `PATH=…:$PATH` below whatever is already there, and both files re-run
+# per shell. Once an install has pushed the call up, it no longer covers that new line.
+PATH_DEDUP_CALL='command -v path_dedup >/dev/null 2>&1 && path_dedup'
+for rc in "$HOME/.bashrc" "$HOME/.profile"; do
+    [ -f "$rc" ] || continue
+    if [ "$(grep -v '^[[:space:]]*$' "$rc" | tail -1)" = "$PATH_DEDUP_CALL" ]; then
+        print_row "~/${rc#"$HOME"/} dedup call" "${GREEN}✓ Last line${NC}" ""
+    else
+        print_row "~/${rc#"$HOME"/} dedup call" "${YELLOW}~ Not last${NC}" "a later append escapes the dedup"
+        missing_items+=("path-dedup")
+    fi
+done
+
 # --- Machine Config (.setup.conf vs template) ---
 print_header "Machine Config"
 
@@ -800,7 +814,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;
@@ -849,6 +863,10 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         default-repo)
             printf "\n  ${CYAN}# Create the default repo dir tmux window 1 opens in (dir or symlink):${NC}\n"
             echo "  mkdir -p ~/$WSL_DISTRO_NAME   # or: ln -s /path/to/your/repo ~/$WSL_DISTRO_NAME"
+            ;;
+        gh-auth)
+            printf "\n  ${CYAN}# Authenticate the GitHub CLI (interactive — setup.sh can only remind)${NC}\n"
+            echo "  gh auth login"
             ;;
     esac
 done
