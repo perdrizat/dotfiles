@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-08-19]
+
+### Added
+
+- `bin/bin/validate_setup.sh`: new "Firefox snap stub" check — reads the stub's effective priority from `apt-cache policy` and flags it when non-negative, catching the weakened state before the next overwrite rather than after.
+
+### Fixed
+
+- `setup.sh`: stop `unattended-upgrades` reinstalling the Firefox snap over the Mozilla deb. Ubuntu's `firefox`/`firefox-esr` stubs carry a `1:` epoch that outranks every Mozilla version, so the old `Pin-Priority: 1000` only won on the priority axis and u-u — which allows the plain release pocket by default — swapped the snap back in (observed 2026-07-15). The pin file now also negative-pins the Ubuntu-origin stubs (`Pin-Priority: -1`), removing them from consideration entirely; existing machines are repaired in place on the next run.
+
 ## [2026-07-25]
 
 ### Added

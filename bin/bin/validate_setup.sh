@@ -683,6 +683,18 @@ if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
         print_row "Firefox ESR" "${RED}x Missing${NC}" ""
         missing_items+=("install-ffesr")
     fi
+    # Catch the weakened state *before* the next overwrite, not after. Ask apt rather than
+    # grepping the pin file: what matters is the priority actually in force. A stub version
+    # left at a non-negative priority is one unattended-upgrades run from restoring the snap.
+    stub_prio=$(apt-cache policy firefox 2>/dev/null | grep 'snap1' | tr -s ' ' | cut -d' ' -f3)
+    if [ -z "$stub_prio" ]; then
+        print_row "Firefox snap stub" "${GREEN}✓ Not offered${NC}" "no stub in any enabled repo"
+    elif [ "$stub_prio" -lt 0 ] 2>/dev/null; then
+        print_row "Firefox snap stub" "${GREEN}✓ Pinned out${NC}" "priority $stub_prio"
+    else
+        print_row "Firefox snap stub" "${YELLOW}~ Installable${NC}" "priority $stub_prio — can replace the Mozilla deb"
+        missing_items+=("ff-snap-pin")
+    fi
 fi
 
 if [[ "$INSTALL_CHROME" == true ]]; then
@@ -788,7 +800,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;

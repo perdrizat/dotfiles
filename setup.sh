@@ -301,6 +301,11 @@ fi
 if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
     # true when the package is absent OR installed only as Ubuntu's snap stub
     ff_need() { ! dpkg -s "$1" >/dev/null 2>&1 || dpkg-query -W -f='${Version}' "$1" 2>/dev/null | grep -q snap; }
+    # Explanatory header for the negative pin, shared by the create and repair paths below.
+    FF_STUB_PIN_NOTE='# Ubuntu ships firefox/firefox-esr as transitional stubs whose only job is to install
+# the snap. Their `1:` epoch outranks every Mozilla version, so merely out-ranking them by
+# Pin-Priority leaves anything that resolves by version alone free to swap the snap back in.
+# -1 takes them out of consideration entirely.'
     ff_pkgs=()
     ff_need firefox     && ff_pkgs+=(firefox)
     ff_need firefox-esr && ff_pkgs+=(firefox-esr)
@@ -309,7 +314,7 @@ if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
         sudo install -d -m 0755 /etc/apt/keyrings
         [ -f /etc/apt/keyrings/packages.mozilla.org.asc ] || curl -fsSL https://packages.mozilla.org/apt/repo-signing-key.gpg | sudo tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null
         [ -f /etc/apt/sources.list.d/mozilla.list ] || echo "deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] https://packages.mozilla.org/apt mozilla main" | sudo tee /etc/apt/sources.list.d/mozilla.list > /dev/null
-        [ -f /etc/apt/preferences.d/mozilla ] || printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' | sudo tee /etc/apt/preferences.d/mozilla
+        [ -f /etc/apt/preferences.d/mozilla ] || printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n\n%s\nPackage: firefox firefox-esr\nPin: release o=Ubuntu\nPin-Priority: -1\n' "$FF_STUB_PIN_NOTE" | sudo tee /etc/apt/preferences.d/mozilla > /dev/null
         # --allow-downgrades: the stub's `1:` epoch sorts above Mozilla's versions, so
         # replacing it counts as a downgrade even though the Pin-Priority 1000 selects it.
         sudo apt-get -qq update && sudo apt-get -qq install -y --allow-downgrades "${ff_pkgs[@]}"
@@ -318,6 +323,14 @@ if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
             echo "Removing redundant Firefox snap..."
             sudo snap remove firefox
         fi
+    fi
+    # Repair machines whose pin file predates the negative stanza above. Priority 1000
+    # only outranks the stub; it does not stop apt resolving by version, where the stub's
+    # `1:` epoch beats every Mozilla release. unattended-upgrades allows the plain release
+    # pocket by default, so it reinstalls the snap on its own schedule (seen 2026-07-15).
+    if ! grep -q '^Package: firefox firefox-esr' /etc/apt/preferences.d/mozilla 2>/dev/null; then
+        echo "Pinning Ubuntu's Firefox snap stubs out of consideration..."
+        printf '\n%s\nPackage: firefox firefox-esr\nPin: release o=Ubuntu\nPin-Priority: -1\n' "$FF_STUB_PIN_NOTE" | sudo tee -a /etc/apt/preferences.d/mozilla > /dev/null
     fi
 fi
 
