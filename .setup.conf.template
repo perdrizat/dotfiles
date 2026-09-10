@@ -22,4 +22,5 @@ SSH_YUBIKEY=true        # WSL: relay Windows ssh-agent (YubiKey ed25519-sk) into
 SSH_LOCAL=false          # decrypt the age-encrypted SSH private key to ~/.ssh/id_ed25519 (opt-in; most machines use the YubiKey relay or need no local key)
 
 # Additional apt packages (space-separated)
+# semi-frequently: jhead
 MORE_APT_PACKAGES=""

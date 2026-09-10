@@ -83,6 +83,19 @@ source "$CONFIG_FILE"
 
 NEEDS_RESTART=false
 
+# Auto-upgrade on first-ever run: a freshly provisioned machine has never had an explicit
+# `apt upgrade`, so bring it fully up to date before installing anything else.
+# The pattern deliberately anchors `upgrade` as an apt *subcommand* (whitespace before it,
+# not a hyphen). A loose `.*upgrade` also matches the provisioner's opening install line,
+# which names `unattended-upgrades` and `ubuntu-release-upgrader-core` — that false positive
+# would suppress this block on exactly the fresh boxes it exists for. Trailing `(space|$)`
+# keeps `unattended-upgrade` (the u-u binary, which only ships security updates) from
+# counting as a full upgrade.
+if ! grep -qE "^Commandline:.*[[:space:]](dist-|full-)?upgrade([[:space:]]|$)" /var/log/apt/history.log 2>/dev/null; then
+    echo "No prior apt upgrade found — upgrading system packages..."
+    sudo apt-get -qq update && sudo apt-get -qq upgrade -y
+fi
+
 # Disable Ubuntu Pro apt advertisements (keep the package, just silence it)
 if command -v pro >/dev/null 2>&1; then
     sudo pro config set apt_news=false 2>/dev/null || true

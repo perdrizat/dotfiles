@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `bin/bin/check_ipv6.sh`: gave the Windows-host probe its own section header, and added a neutral `info` row style for observations whose verdict is drawn elsewhere.
 - `bin/bin/check_ipv6.sh`: network change log entry for 2026-09-03 (router advertising three /64s, only `b205:0::` routed; ghost prefixes break WSL's RFC 6724 tie-break while Windows stays fine).
 
+## [2026-09-06]
+
+### Added
+
+- `setup.sh`: on a machine with no prior explicit `apt upgrade`, run `apt update && apt upgrade -y` before installing anything, instead of only suggesting `validate_setup.sh -u` at the end. First-run is inferred from `/var/log/apt/history.log` rather than a sentinel file, so it needs no state of its own. The match anchors `upgrade` as an apt subcommand (whitespace-prefixed, trailing word boundary): a loose `.*upgrade` also hits the provisioner's opening install line — which names `unattended-upgrades` and `ubuntu-release-upgrader-core` — and would have suppressed the block on precisely the fresh boxes it targets; the trailing boundary likewise excludes the `unattended-upgrade` binary, which ships only security updates.
+
 ## [2026-08-19]
 
 ### Added
