@@ -14,6 +14,25 @@
 # session reads history here instead of guessing through git. Confidence tags:
 #   [H] confirmed (commit/diff/observed)   [M] inferred   [L] best guess
 #
+#   2026-09-03  Ghost prefixes, not a WSL fault. The router fe80::962a:6fff:fef2:d2fd  [H]
+#               advertises THREE /64s — b205:0::, b205:1::, b205:2:: — with identical,
+#               actively-refreshing RA lifetimes, but only b205:0:: is routed upstream.
+#               Verified from Windows itself: ping.exe -6 -S from a b205:2: source times
+#               out, from b205:0: it replies in 1ms. WSL mirrored networking copies all
+#               of Windows' addresses in; RFC 6724 rules 1-8 all tie, so Linux breaks the
+#               tie on address-list order and lands on the NEWEST (dead) prefix, while
+#               Windows happens to pick b205:0:. Every new ghost prefix therefore breaks
+#               WSL IPv6 again while Windows stays fine.
+#               Fixed live by deprecating the two preferred ghost addrs:
+#               `sudo ip -6 addr change <addr>/128 dev eth0 preferred_lft 0`. Caveat: they
+#               are Windows *temporary* privacy addrs (preferred_lft ~40min) — fresh ones
+#               on the dead prefixes reappear on rotation. Real fix is on the router:
+#               stop advertising b205:1::/64 and b205:2::/64 (a correct router withdraws
+#               them with preferred_lft 0 rather than dropping them silently).
+#               Doctor change: dropped the hardcoded STALE_PREFIX match (it only knew
+#               b205:1: and reported b205:2: as a healthy global address) in favour of
+#               probing every global source address and judging per prefix — dead while
+#               still preferred = fault, dead with all addrs deprecated = fine.
 #   2026-06-11  Retired the wsl.conf static-IPv6 pin (was added 2026-04-07).          [H]
 #               The pinned EUI-64 addr 2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81 blackholes
 #               under WSL mirrored networking — only Windows-mirrored SLAAC addresses
@@ -47,7 +66,6 @@ PROBE_HOST=registry.npmjs.org                               # what bun/npm actua
 # return in future (e.g. if WSL is switched off mirrored networking), so the doctor does
 # not assume it is bad — it TESTS whether traffic sourced from it works. See setup.sh.
 RETIRED_ADDR="2a02:16a:b205:0:3e6a:d2ff:fe7a:6a81"
-STALE_PREFIX="2a02:16a:b205:1:"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; GRAY='\033[0;90m'; BOLD='\033[1m'; NC='\033[0m'
 
@@ -58,6 +76,7 @@ pass() { print_row "$1" "${GREEN}✓ $2${NC}" "${3:-}"; }
 warn() { print_row "$1" "${YELLOW}~ $2${NC}" "${3:-}"; issues=$((issues+1)); }
 fail() { print_row "$1" "${RED}x $2${NC}" "${3:-}"; issues=$((issues+1)); }
 skip() { print_row "$1" "${GRAY}– skipped${NC}" "${2:-}"; }            # missing prereq: not a fault
+info() { print_row "$1" "${GRAY}· $2${NC}" "${3:-}"; }                 # observation: verdict is drawn elsewhere
 
 have() { command -v "$1" >/dev/null 2>&1; }
 # Run with a wall-clock cap when `timeout` exists, else run bare (dropping the duration arg)
@@ -102,9 +121,8 @@ if have ip; then
         fail "Deprecated global addrs" "$global_dep, none preferred" "only deprecated addrs left — outbound IPv6 has no valid source"
     fi
 
-    if echo "$addrs" | grep -q "$STALE_PREFIX"; then
-        fail "Stale prefix leftover" "Present" "${STALE_PREFIX}… — old leftover, remove it (drop any wsl.conf ip-6 pin)"
-    fi
+    # Note: leftover/ghost prefixes are no longer matched by name here — they are found by
+    # probing (see "Prefix reachability"), which catches ones we have never seen before.
 
     # Retired static pin: present? then TEST it rather than condemn it.
     if echo "$addrs" | grep -qw "$RETIRED_ADDR"; then
@@ -177,18 +195,55 @@ if have ping; then
         warn "ping4 $PROBE_V4_DNS (baseline)" "No reply" "IPv4 also broken — problem is not IPv6-specific"
     fi
 
-    # When the default path fails, try each candidate source address — discriminates
-    # "one address blackholes" (fix: drop it) from "all of IPv6 is down" (upstream)
-    if ! $v6_ping_ok && [ -n "$addrs" ]; then
+    # Probe EVERY global source address, always — not only when the default path is down.
+    # A prefix the router still advertises but nobody routes ("ghost prefix") stays invisible
+    # for as long as the kernel happens to pick a live source, then breaks the box the moment
+    # a new address shifts RFC 6724's tie-break onto it. Probing on every run makes the ghost
+    # visible while IPv6 still works, and discriminates "one address blackholes" (fix: deprecate
+    # it) from "all of IPv6 is down" (upstream).
+    if [ -n "$addrs" ]; then
         print_header "Per-source probes (which source address still works?)"
-        while IFS= read -r cand; do
+        declare -A pfx_live=() pfx_dead_pref=()
+        while IFS= read -r ln; do
+            cand=$(echo "$ln" | awk '{print $2}' | cut -d/ -f1)
             [ -n "$cand" ] || continue
+            state=preferred
+            echo "$ln" | grep -q ' deprecated' && state=deprecated
+            pfx=$(echo "$cand" | cut -d: -f1-4); pfx=${pfx%:}
             if ping -6 -c1 -W2 -I "$cand" "${PROBE_V6_DNS[0]}" >/dev/null 2>&1; then
-                pass "src $cand" "Works" "kernel default chose a different (broken) source!"
+                pfx_live[$pfx]=1
+                pass "src $cand" "Works" "$state"
             else
-                fail "src $cand" "No reply" ""
+                pfx_live[$pfx]="${pfx_live[$pfx]:-0}"
+                [ "$state" = preferred ] && pfx_dead_pref[$pfx]="${pfx_dead_pref[$pfx]:-}$cand "
+                info "src $cand" "No reply" "$state"   # not a fault alone — see prefix verdict
             fi
-        done < <(echo "$addrs" | grep 'scope global' | awk '{print $2}' | cut -d/ -f1)
+        done < <(echo "$addrs" | grep 'scope global')
+
+        # Verdict per prefix. A dead prefix only matters while it still holds a *preferred*
+        # address: that is what the kernel can pick as a source. Dead + all-deprecated is
+        # inert — the kernel skips it (RFC 6724 rule 3) — so it is reported, not failed.
+        print_header "Prefix reachability (ghost-prefix detection)"
+        for pfx in $(echo "${!pfx_live[@]}" | tr ' ' '\n' | sort); do
+            if [ "${pfx_live[$pfx]}" = "1" ]; then
+                pass "${pfx}::/64" "Routed" ""
+            elif [ -n "${pfx_dead_pref[$pfx]:-}" ]; then
+                fail "${pfx}::/64" "Ghost, still preferred" "advertised but unrouted — the kernel may source from it"
+                for bad in ${pfx_dead_pref[$pfx]}; do
+                    info "  fix" "$bad" "sudo ip -6 addr change $bad/128 dev $IFACE preferred_lft 0"
+                done
+            else
+                pass "${pfx}::/64" "Ghost, neutralized" "unrouted, but all its addrs are deprecated — kernel won't pick it"
+            fi
+        done
+
+        # The sharpest statement of the bug: the source the kernel actually picks is dead.
+        if [ -n "${src:-}" ]; then
+            src_pfx=$(echo "$src" | cut -d: -f1-4); src_pfx=${src_pfx%:}
+            if [ "${pfx_live[$src_pfx]:-1}" = "0" ]; then
+                fail "Kernel source prefix" "Dead" "$src sits on ghost prefix ${src_pfx}::/64 — this is why IPv6 blackholes"
+            fi
+        fi
     fi
 else
     skip "ICMP probes" "ping not installed — reachability not measured"
@@ -196,6 +251,7 @@ fi
 
 # WSL: ask the Windows host itself — separates "router/ISP outage" from "WSL networking broken"
 WIN_PING=/mnt/c/Windows/System32/ping.exe
+is_wsl && print_header "Windows Host (mirrored networking)"
 if is_wsl && [ -x "$WIN_PING" ]; then
     if TO 8 "$WIN_PING" -6 -n 1 -w 2000 "${PROBE_V6_DNS[0]}" >/dev/null 2>&1; then
         pass "Windows host IPv6" "Works" "any outage is WSL-internal (mirroring/forwarding)"

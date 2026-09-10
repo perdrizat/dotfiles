@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-09-10]
+
+### Changed
+
+- `bin/bin/check_ipv6.sh`: replaced the hardcoded `STALE_PREFIX` match with per-prefix liveness probing — every global source address is probed on every run (not only when the default path is already down), and prefixes are judged as routed / ghost-still-preferred (fault) / ghost-neutralized (inert). The old check only knew `b205:1:` and reported the newer dead `b205:2:` prefix as a healthy global address.
+- `bin/bin/check_ipv6.sh`: new "Kernel source prefix" check — fails when the source the kernel actually selects sits on an unrouted prefix, which is the precise cause of a WSL-only IPv6 blackhole.
+- `bin/bin/check_ipv6.sh`: gave the Windows-host probe its own section header, and added a neutral `info` row style for observations whose verdict is drawn elsewhere.
+- `bin/bin/check_ipv6.sh`: network change log entry for 2026-09-03 (router advertising three /64s, only `b205:0::` routed; ghost prefixes break WSL's RFC 6724 tie-break while Windows stays fine).
+
 ## [2026-08-19]
 
 ### Added
