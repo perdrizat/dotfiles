@@ -134,7 +134,24 @@ mkdir -p ~/.config/gh # real dir so stow links config.yml individually; gh's sec
 # Antigravity-only dirs: created/unfolded only when agy is enabled, so a disabled machine's
 # ~/.gemini is left untouched (the gemini stow package is also skipped, see STOW_SKIP above).
 if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
-    mkdir -p ~/.gemini/config  # real dir so stow folds skills at ~/.gemini/config/skills (agy writes other config here)
+    # ~/.gemini/config must be a real local dir, never a stow symlink into the repo: agy writes
+    # runtime state (.migrated, mcp_config.json, projects/) next to the tracked skills, and a
+    # folded dir symlink sends all of it into the repo. A bare `mkdir -p` protects a fresh
+    # machine but is a silent no-op on an already-folded symlink (it resolves and succeeds),
+    # so unfold explicitly first.
+    if [ -L ~/.gemini/config ]; then
+        rm -f ~/.gemini/config
+        mkdir -p ~/.gemini/config
+        # Salvage agy runtime state written through the old symlink into the repo — everything
+        # except the stow-managed skills dirs, which stay put and get re-linked by stow below.
+        for _f in "$DOTFILES_DIR"/gemini/.gemini/config/* "$DOTFILES_DIR"/gemini/.gemini/config/.[!.]*; do
+            [ -e "$_f" ] || [ -L "$_f" ] || continue
+            case "$(basename "$_f")" in skills|skills.inactive) continue ;; esac
+            mv "$_f" ~/.gemini/config/
+        done
+        echo "Unfolded ~/.gemini/config (was a stow symlink into the repo); salvaged agy runtime state"
+    fi
+    mkdir -p ~/.gemini/config  # real dir so stow links skills individually (agy writes other config here)
     # ~/.gemini/antigravity-cli must be a real local dir, never a stow symlink into the repo:
     # agy writes runtime state (settings, logs, oauth token) there — a folded dir symlink made
     # agy write into the repo and let `stow --adopt` clobber the settings template. The subtree

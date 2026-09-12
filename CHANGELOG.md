@@ -15,6 +15,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `bin/bin/check_ipv6.sh`: gave the Windows-host probe its own section header, and added a neutral `info` row style for observations whose verdict is drawn elsewhere.
 - `bin/bin/check_ipv6.sh`: network change log entry for 2026-09-03 (router advertising three /64s, only `b205:0::` routed; ghost prefixes break WSL's RFC 6724 tie-break while Windows stays fine).
 
+## [2026-09-12]
+
+### Changed
+
+- `gemini/.gemini/antigravity-cli/settings.json`: sync locally-granted allows into the tracked template — `agy`/`antigravity`/`antigravity-cli`, `firefox`/`firefox-esr`, `git fetch`, `npm list`, and the `pnpm` `chrome:smoke`/`test:integration`/`test:e2e:chrome`/`outdated`/`update` targets. Propagated by `setup.sh`'s settings merge; clears the `agy-untracked-allows` finding.
+
+### Fixed
+
+- `setup.sh`: unfold `~/.gemini/config` when it is a stow symlink into the repo, salvaging agy's runtime state (`.migrated`, `mcp_config.json`, `projects/`) into `$HOME` while leaving the tracked `skills`/`skills.inactive` to be re-linked. The existing `mkdir -p` guarded only fresh machines — it is a silent no-op on an already-folded symlink (it resolves the link and succeeds) — so boxes folded before that line was added kept writing agy config into the repo. Mirrors the unfold block `~/.gemini/antigravity-cli` already had.
+- `bin/bin/validate_setup.sh`: the stow-folding scan now reports a folded directory that an app writes its own runtime state into (`.claude`, `.ssh`, `.config/gh`, `.gemini/config` — the dirs `setup.sh` keeps real) as a fault routed to a `setup.sh` re-run, instead of the green "Linked" it gave any correctly-targeted fold. Catches the whole bug class at the point folding is evaluated, rather than per-app.
+
 ## [2026-09-06]
 
 ### Added

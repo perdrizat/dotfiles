@@ -248,6 +248,11 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
     pkg=$(basename "$pkg_dir")
     is_stow_skip "$pkg" && continue
 
+    # Dirs an app writes its own runtime state into. They must stay real dirs — setup.sh
+    # mkdir -p's each before stowing — so that state lands in $HOME; a fold here silently
+    # redirects it into the repo (gh's auth token, agy's config) instead.
+    no_fold=(.claude .ssh .config/gh .gemini/config)
+
     # Collect directories that stow may have folded into directory symlinks (any depth)
     folded_dirs=()
     while IFS= read -r -d '' entry; do
@@ -260,7 +265,16 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
             actual=$(readlink -f "$target")
             expected=$(readlink -f "$entry")
             if [ "$actual" = "$expected" ]; then
-                print_row "$relative/" "${GREEN}✓ Linked${NC}" "→ ${entry#"$HOME"/}"
+                bad_fold=false
+                for nf in "${no_fold[@]}"; do
+                    [[ "$relative" == "$nf" ]] && bad_fold=true && break
+                done
+                if $bad_fold; then
+                    print_row "$relative/" "${RED}x Stow symlink${NC}" "app writes into the repo — run setup.sh to unfold"
+                    missing_items+=("stow-$pkg")
+                else
+                    print_row "$relative/" "${GREEN}✓ Linked${NC}" "→ ${entry#"$HOME"/}"
+                fi
                 folded_dirs+=("$relative")
             fi
         fi
