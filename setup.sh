@@ -210,8 +210,12 @@ if [[ "$INSTALL_CLAUDE" == true ]]; then
         # Allows union + enforce policy keys the template pins (only when present, so a missing
         # template key never injects null). `model` is deliberately excluded — it stays locally
         # customizable; every other key here is a policy we want consistent across machines.
+        # `attribution` governs commit/PR attribution: .commitTrailers kills Co-Authored-By and
+        # .sessionUrl kills the Claude-Session trailer + PR-body link — two independent gates, so
+        # the deprecated includeCoAuthoredBy (kept for older Claude Code builds on other boxes)
+        # silences only the former. jq's `*` merges the object recursively, template keys winning.
         merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" \
-            "$ALLOWS_UNION * (.[1] | {includeCoAuthoredBy, awaySummaryEnabled, spinnerTipsEnabled, feedbackSurveyRate} | with_entries(select(.value != null)))" \
+            "$ALLOWS_UNION * (.[1] | {includeCoAuthoredBy, attribution, awaySummaryEnabled, spinnerTipsEnabled, feedbackSurveyRate} | with_entries(select(.value != null)))" \
             "Merged template allows + policy keys into ~/.claude/settings.json"
     fi
 fi

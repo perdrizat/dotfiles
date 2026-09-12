@@ -338,7 +338,7 @@ if [ -L "$HOME/.claude/settings.json" ]; then
 elif [ -f "$HOME/.claude/settings.json" ]; then
     # Check for required top-level keys (except model, which is user-configurable)
     local_settings="$HOME/.claude/settings.json"
-    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup" "includeCoAuthoredBy" "awaySummaryEnabled" "spinnerTipsEnabled" "feedbackSurveyRate")
+    required_keys=("permissions" "hooks" "statusLine" "terminalTitleFromRename" "autoMemoryEnabled" "remoteControlAtStartup" "includeCoAuthoredBy" "attribution" "awaySummaryEnabled" "spinnerTipsEnabled" "feedbackSurveyRate")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do

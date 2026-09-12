@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-09-12]
+
+### Added
+
+- Claude settings: pin `attribution: {commitTrailers: false, sessionUrl: false}` in the template, propagate it through `setup.sh`'s policy-key overlay, and require it in `validate_setup.sh`. `includeCoAuthoredBy` is deprecated upstream ("Use attribution instead") and gates only the `Co-Authored-By` trailer; the `Claude-Session:` trailer and PR-body link sit behind an independent `sessionUrl` gate (the generator appends the session trailer even when the attribution text is empty), which is why they survived `includeCoAuthoredBy: false`. The deprecated key stays for older Claude Code builds on other boxes.
+- `agents/AGENTS.md`: standing rule that commit messages carry no attribution lines or trailers — `Claude-Session:`, `Co-Authored-By:`, generated-with lines, session URLs — explicitly overriding harness-supplied attribution guidance, including mid-conversation system reminders that request one. Reaches every devbox through the existing `~/.claude/CLAUDE.md` / `~/.codex/AGENTS.md` / `~/.gemini/GEMINI.md` symlinks, so no per-box setup is needed.
+
+### Changed
+
+- `gemini/.gemini/antigravity-cli/settings.json`: sync locally-granted allows into the tracked template — `agy`/`antigravity`/`antigravity-cli`, `firefox`/`firefox-esr`, `git fetch`, `npm list`, and the `pnpm` `chrome:smoke`/`test:integration`/`test:e2e:chrome`/`outdated`/`update` targets. Propagated by `setup.sh`'s settings merge; clears the `agy-untracked-allows` finding.
+- `bin/bin/claude_status.sh`: usage poll interval `CACHE_TTL` 300s → 120s, for a fresher 5h/7d reading.
+
+### Fixed
+
+- `bin/bin/claude_status.sh`: false "rate limited" on roughly half of new tmux sessions. The 429 backoff file was cleared *only* by a successful fetch, which it simultaneously suppressed — so one transient 429 against a cold `/tmp` pinned the display for the entire `retry-after`, escapable only by `rm /tmp/claude_usage_*`. Removed the backoff file, the `retry-after`/HTTP-status header parsing and the "rate limited" state outright: the single one-attempt-per-`CACHE_TTL` throttle is the whole rate-limit story, and every failure now self-heals on the next attempt.
+- `bin/bin/claude_status.sh`: cache writes are temp-file + rename — a plain `>` truncates before writing, so a concurrent pane could read a 0-byte cache and render "unknown" despite good data being present.
+- `bin/bin/claude_status.sh`: `curl --max-time 5` so a hung request can't stall the render, and a future-dated stamp (negative age) counts as stale rather than freezing fetches indefinitely.
+- `setup.sh`: unfold `~/.gemini/config` when it is a stow symlink into the repo, salvaging agy's runtime state (`.migrated`, `mcp_config.json`, `projects/`) into `$HOME` while leaving the tracked `skills`/`skills.inactive` to be re-linked. The existing `mkdir -p` guarded only fresh machines — it is a silent no-op on an already-folded symlink (it resolves the link and succeeds) — so boxes folded before that line was added kept writing agy config into the repo. Mirrors the unfold block `~/.gemini/antigravity-cli` already had.
+- `bin/bin/validate_setup.sh`: the stow-folding scan now reports a folded directory that an app writes its own runtime state into (`.claude`, `.ssh`, `.config/gh`, `.gemini/config` — the dirs `setup.sh` keeps real) as a fault routed to a `setup.sh` re-run, instead of the green "Linked" it gave any correctly-targeted fold. Catches the whole bug class at the point folding is evaluated, rather than per-app.
+
 ## [2026-09-10]
 
 ### Changed
@@ -14,17 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `bin/bin/check_ipv6.sh`: new "Kernel source prefix" check — fails when the source the kernel actually selects sits on an unrouted prefix, which is the precise cause of a WSL-only IPv6 blackhole.
 - `bin/bin/check_ipv6.sh`: gave the Windows-host probe its own section header, and added a neutral `info` row style for observations whose verdict is drawn elsewhere.
 - `bin/bin/check_ipv6.sh`: network change log entry for 2026-09-03 (router advertising three /64s, only `b205:0::` routed; ghost prefixes break WSL's RFC 6724 tie-break while Windows stays fine).
-
-## [2026-09-12]
-
-### Changed
-
-- `gemini/.gemini/antigravity-cli/settings.json`: sync locally-granted allows into the tracked template — `agy`/`antigravity`/`antigravity-cli`, `firefox`/`firefox-esr`, `git fetch`, `npm list`, and the `pnpm` `chrome:smoke`/`test:integration`/`test:e2e:chrome`/`outdated`/`update` targets. Propagated by `setup.sh`'s settings merge; clears the `agy-untracked-allows` finding.
-
-### Fixed
-
-- `setup.sh`: unfold `~/.gemini/config` when it is a stow symlink into the repo, salvaging agy's runtime state (`.migrated`, `mcp_config.json`, `projects/`) into `$HOME` while leaving the tracked `skills`/`skills.inactive` to be re-linked. The existing `mkdir -p` guarded only fresh machines — it is a silent no-op on an already-folded symlink (it resolves the link and succeeds) — so boxes folded before that line was added kept writing agy config into the repo. Mirrors the unfold block `~/.gemini/antigravity-cli` already had.
-- `bin/bin/validate_setup.sh`: the stow-folding scan now reports a folded directory that an app writes its own runtime state into (`.claude`, `.ssh`, `.config/gh`, `.gemini/config` — the dirs `setup.sh` keeps real) as a fault routed to a `setup.sh` re-run, instead of the green "Linked" it gave any correctly-targeted fold. Catches the whole bug class at the point folding is evaluated, rather than per-app.
 
 ## [2026-09-06]
 

@@ -42,5 +42,9 @@
   "autoMemoryEnabled": true,
   "remoteControlAtStartup": true,
   "includeCoAuthoredBy": false,
+  "attribution": {
+    "commitTrailers": false,
+    "sessionUrl": false
+  },
   "model": "opus"
 }
