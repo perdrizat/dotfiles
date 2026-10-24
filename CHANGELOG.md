@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-10-24]
+
+### Changed
+
+- `tmux/.tmux.conf`: new sessions no longer auto-start a second `claude --continue` in window 2 (`~/dotfiles`); both its panes now open at a shell. That removes the `sleep 10` stagger too, since only window 1's agent starts.
+
+### Fixed
+
+- `bin/bin/validate_setup.sh`: the dotfiles-repo check no longer claims `✓ Up to date` when it could not reach the remote — a failed `git fetch` was swallowed by `2>/dev/null || true`, leaving `origin/main` unrefreshed so it compared equal to `HEAD` (observed 2026-09-12 against a clone two days behind). A failure now yields `~ Unverified` with the age of the last successful fetch plus a `dotfiles-fetch` finding that prints an unmuted `git fetch` to surface the real cause; divergence from even a stale ref still reports `~ Out of sync`.
+
 ## [2026-09-12]
 
 ### Added

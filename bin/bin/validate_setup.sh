@@ -140,16 +140,37 @@ if [ -d "$DOTFILES_DIR/.git" ]; then
     # fetch is stale — FETCH_HEAD's mtime records the last successful fetch. Within
     # 24h, compare against the already-fetched origin/main instead of hitting the network.
     fetch_head="$DOTFILES_DIR/.git/FETCH_HEAD"
-    if [ ! -f "$fetch_head" ] || [ $(( $(date +%s) - $(stat -c %Y "$fetch_head") )) -ge 86400 ]; then
-        git fetch --quiet 2>/dev/null || true
+    fetch_age=""  # seconds since the last successful fetch; empty when never fetched
+    [ -f "$fetch_head" ] && fetch_age=$(( $(date +%s) - $(stat -c %Y "$fetch_head") ))
+    # Record a failed fetch instead of discarding it. With the error swallowed, an
+    # unreachable remote and a genuinely current one are indistinguishable — both leave
+    # origin/main untouched, so it compares equal to HEAD and the row claimed "Up to date"
+    # while the clone sat days behind (observed 2026-09-12, two days stale). A failure
+    # downgrades that claim to "~ Unverified" below rather than asserting freshness.
+    fetch_failed=false
+    if [ -z "$fetch_age" ] || [ "$fetch_age" -ge 86400 ]; then
+        git fetch --quiet 2>/dev/null || fetch_failed=true
     fi
     local_head=$(git rev-parse HEAD 2>/dev/null)
     remote_head=$(git rev-parse origin/main 2>/dev/null || echo "")
     if [ -n "$remote_head" ] && [ "$local_head" != "$remote_head" ]; then
+        # Divergence from even a stale origin/main is still real divergence, so this
+        # verdict holds whether or not the fetch landed.
         behind=$(git rev-list --count HEAD..origin/main 2>/dev/null || echo "?")
         ahead=$(git rev-list --count origin/main..HEAD 2>/dev/null || echo "0")
         print_row "dotfiles repo" "${YELLOW}~ Out of sync${NC}" "${behind} behind, ${ahead} ahead"
         missing_items+=("dotfiles-sync")
+    elif [ "$fetch_failed" = true ]; then
+        # Equal to a ref we could not refresh — report how stale the comparison is.
+        if [ -z "$fetch_age" ]; then
+            last_sync="never fetched"
+        elif [ "$fetch_age" -ge 86400 ]; then
+            last_sync="last synced $((fetch_age / 86400))d ago"
+        else
+            last_sync="last synced $((fetch_age / 3600))h ago"
+        fi
+        print_row "dotfiles repo" "${YELLOW}~ Unverified${NC}" "fetch failed — $last_sync"
+        missing_items+=("dotfiles-fetch")
     else
         print_row "dotfiles repo" "${GREEN}✓ Up to date${NC}" "~/dotfiles"
     fi
@@ -845,6 +866,12 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         dotfiles-sync)
             printf "\n  ${CYAN}# Sync dotfiles${NC}\n"
             echo "  cd ~/dotfiles && git pull --rebase"
+            ;;
+        dotfiles-fetch)
+            # No guess at the cause (auth, DNS, VPN, …) — run the fetch unmuted so git
+            # prints the actual error the silent check swallowed.
+            printf "\n  ${CYAN}# Could not reach the dotfiles remote — fetch to see the error${NC}\n"
+            echo "  cd ~/dotfiles && git fetch"
             ;;
     esac
 done
