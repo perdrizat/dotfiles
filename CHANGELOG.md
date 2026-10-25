@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `agents/AGENTS.md`, `claude/.claude/settings.json`, `gemini/.gemini/antigravity-cli/settings.json`: allow-list read-only shell utilities and read-only/flag-scoped `git` inspection subcommands across both harnesses, and update global command rules so harnesses without dedicated `Grep`/`Glob` tools (like Antigravity) can run bare read-only search/listing commands without approval prompts.
+- `agents/AGENTS.md`: explicitly require `Model: "flash"` / `"flash_lite"` in Antigravity's `invoke_subagent` (and `sonnet` / `haiku` in Claude Code) for all coding and research subagents, overriding `invoke_subagent`'s built-in `Model: "inherit"` default so Argon orchestrators don't spawn Argon subagents.
+- `bin/bin/agy_status.sh`: highlight `Sandbox: On` in green and `Sandbox: Off` in amber.
+- `gemini/.gemini/antigravity-cli/settings.json`, `setup.sh`, `bin/bin/validate_setup.sh`: enable Antigravity's terminal sandbox by default (`enableTerminalSandbox: true`), forward-merge it onto existing machines via `setup.sh`, and require it in `validate_setup.sh`.
 - `bin/bin/agy_status.sh`: show all three independent quota pools (`Argon`, `Gemini`, `3P`) on Line 2 (expanding the active model's pool with a dot bar and reset time(s) while displaying compact color-coded `5h/7d` or `7d` percentages for the other two pools), and move `Sandbox: On/Off` to Line 1 alongside session state.
 
 ### Removed

@@ -413,7 +413,7 @@ elif [ -L "$AGY_SETTINGS" ]; then
     print_row "agy settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("agy-settings-symlink")
 elif [ -f "$AGY_SETTINGS" ]; then
-    required_keys=("permissions" "statusLine" "hooks" "title")
+    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do

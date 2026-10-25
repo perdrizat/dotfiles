@@ -459,10 +459,10 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
     AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
     if [[ -f "$AGY_SETTINGS" ]]; then
-        # Allows union + statusLine/hooks/title parity, but only for keys the template
+        # Allows union + statusLine/hooks/title/enableTerminalSandbox parity, but only for keys the template
         # actually has (a missing template key must never inject null or erase local values)
         merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
-            "$ALLOWS_UNION * (.[1] | {statusLine, hooks, title} | with_entries(select(.value != null)))" \
+            "$ALLOWS_UNION * (.[1] | {statusLine, hooks, title, enableTerminalSandbox} | with_entries(select(.value != null)))" \
             "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
         cp "$AGY_TEMPLATE" "$AGY_SETTINGS"

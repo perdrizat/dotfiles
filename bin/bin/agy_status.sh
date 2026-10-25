@@ -156,7 +156,7 @@ fmt_pct() {
 # --- 5. RENDER ---
 ctx_color=$(pct_color "$ctx_pct_int")
 state_color=$(active_color "$AGENT_STATE")
-sandbox_color=$(active_color "$SANDBOX_LABEL")
+[[ "$SANDBOX_ENABLED" == "true" ]] && sandbox_color="$GREEN" || sandbox_color="$AMBER"
 
 # Line 1: Session-local values
 printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}context:${RESET} ${ctx_color}%d%% used${RESET} ${GRAY}|${RESET} ${GRAY}Cache:${RESET} %sk ${GRAY}|${RESET} ${GRAY}State:${RESET} ${state_color}%s${RESET} ${GRAY}|${RESET} ${GRAY}Sandbox:${RESET} ${sandbox_color}%s${RESET}\n" \
