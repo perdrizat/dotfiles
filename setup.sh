@@ -566,5 +566,6 @@ echo "To update packages and toolchains, run:"
 echo "  validate_setup.sh -u"
 echo ""
 if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
-    echo "Reminder: authenticate the GitHub CLI — get a fine-grained PAT at https://github.com/settings/personal-access-tokens, then run: gh auth login --with-token  (silent: paste the token, Enter, Ctrl-D)"
+    echo "gh not authenticated. New PAT: https://github.com/settings/personal-access-tokens"
+    echo "Then: gh auth login --with-token   (silent: paste token, hit Enter, type Ctrl-D)"
 fi
