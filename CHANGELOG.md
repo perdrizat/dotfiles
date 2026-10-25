@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-10-25]
 
+### Changed
+
+- `bin/bin/agy_status.sh`: show all three independent quota pools (`Argon`, `Gemini`, `3P`) on Line 2 (expanding the active model's pool with a dot bar and reset time(s) while displaying compact color-coded `5h/7d` or `7d` percentages for the other two pools), and move `Sandbox: On/Off` to Line 1 alongside session state.
+
+### Removed
+
+- `bin/bin/agy_status.sh`: remove the legacy `Credits: 500 prompts, 100 flow` segment and the `~/.agy.json` background `GetUserStatus` polling loop (those values were static Windsurf/Codeium remnants unrelated to Google One AI Pro plans, and `agy` 1.4.7+ now blocks unauthenticated local `GetUserStatus` calls with a CSRF check).
+
 ### Fixed
 
 - `bin/bin/agy_status.sh`: read model quota from the stdin payload's `.quota` buckets (`gemini-argon-wtu-weekly`, `gemini-5h`/`gemini-weekly`, `3p-5h`/`3p-weekly`) before falling back to `~/.agy.json`, showing `7d left:` (`MM/DD HH:MM`) for Argon and both `5h left:` (`HH:MM`) and `7d left:` (`MM/DD HH:MM`) for standard Gemini and 3P models.
