@@ -379,14 +379,14 @@ elif [ -f "$HOME/.claude/settings.json" ]; then
     fi
 
     # Check for untracked permissions
-    untracked_cmds=$(jq -r -s '([.[0].permissions.allow[]?] - [.[1].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
+    untracked_cmds=$(jq -r -s 'def p: [.permissions | (.allow[]?, .deny[]?, .ask[]?)]; ((.[0] | p) - (.[1] | p)) | if length > 0 then join(", ") else empty end' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
     if [ -n "$untracked_cmds" ]; then
         print_row ".claude/settings.json" "${YELLOW}~ Untracked allows${NC}" "+ $untracked_cmds"
         missing_items+=("claude-untracked-allows")
     fi
 
     # Check the reverse: template allows missing locally (forward-sync gap)
-    behind_cmds=$(jq -r -s '([.[1].permissions.allow[]?] - [.[0].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
+    behind_cmds=$(jq -r -s 'def p: [.permissions | (.allow[]?, .deny[]?, .ask[]?)]; ((.[1] | p) - (.[0] | p)) | if length > 0 then join(", ") else empty end' "$local_settings" "$DOTFILES_DIR/claude/.claude/settings.json" 2>/dev/null)
     if [ -n "$behind_cmds" ]; then
         print_row ".claude/settings.json" "${YELLOW}~ Behind template${NC}" "- $behind_cmds"
         missing_items+=("claude-template-allows")
@@ -431,14 +431,14 @@ elif [ -f "$AGY_SETTINGS" ]; then
     fi
 
     # Check for untracked permissions
-    untracked_cmds=$(jq -r -s '([.[0].permissions.allow[]?] - [.[1].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
+    untracked_cmds=$(jq -r -s --arg home "$HOME" "$JQ_PATH_DEFS"' def p: [.permissions | (.allow[]?, .deny[]?, .ask[]?)] | map(collapse); ((.[0] | p) - (.[1] | p)) | if length > 0 then join(", ") else empty end' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
     if [ -n "$untracked_cmds" ]; then
         print_row "agy settings.json" "${YELLOW}~ Untracked allows${NC}" "+ $untracked_cmds"
         missing_items+=("agy-untracked-allows")
     fi
 
     # Check the reverse: template allows missing locally (forward-sync gap)
-    behind_cmds=$(jq -r -s '([.[1].permissions.allow[]?] - [.[0].permissions.allow[]?]) | if length > 0 then join(", ") else empty end' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
+    behind_cmds=$(jq -r -s --arg home "$HOME" "$JQ_PATH_DEFS"' def p: [.permissions | (.allow[]?, .deny[]?, .ask[]?)] | map(collapse); ((.[1] | p) - (.[0] | p)) | if length > 0 then join(", ") else empty end' "$AGY_SETTINGS" "$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json" 2>/dev/null)
     if [ -n "$behind_cmds" ]; then
         print_row "agy settings.json" "${YELLOW}~ Behind template${NC}" "- $behind_cmds"
         missing_items+=("agy-template-allows")
@@ -628,8 +628,17 @@ if dpkg -s gh >/dev/null 2>&1; then
         if gh auth status >/dev/null 2>&1; then
             print_row "gh auth" "${GREEN}✓ Logged in${NC}" ""
         else
-            print_row "gh auth" "${YELLOW}~ Not logged in${NC}" "run 'gh auth login'"
+            print_row "gh auth" "${YELLOW}~ Not logged in${NC}" "needs a PAT (see fix below)"
             missing_items+=("gh-auth")
+        fi
+        # git transport must stay on SSH (YubiKey-gated): with https, gh's credential helper would
+        # push using the API token, which has no hardware-presence check
+        gh_proto=$(gh config get git_protocol 2>/dev/null)
+        if [ "$gh_proto" = "ssh" ]; then
+            print_row "gh git protocol" "${GREEN}✓ ssh${NC}" ""
+        else
+            print_row "gh git protocol" "${YELLOW}~ ${gh_proto:-unset}${NC}" "want ssh (re-run setup.sh to re-stow gh/config.yml)"
+            missing_items+=("stow-gh-protocol")
         fi
     fi
 else
@@ -906,8 +915,9 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
             echo "  mkdir -p ~/$WSL_DISTRO_NAME   # or: ln -s /path/to/your/repo ~/$WSL_DISTRO_NAME"
             ;;
         gh-auth)
-            printf "\n  ${CYAN}# Authenticate the GitHub CLI (interactive — setup.sh can only remind)${NC}\n"
-            echo "  gh auth login"
+            # One pasteable line: `--with-token` reads the PAT from stdin (paste, Enter, Ctrl-D),
+            # and GitHub only shows a token once at creation, so "look up" means regenerate on that page.
+            printf "\n  gh auth login --with-token  ${CYAN}# paste a fine-grained PAT, Enter, Ctrl-D — create/regenerate at https://github.com/settings/personal-access-tokens${NC}\n"
             ;;
     esac
 done

@@ -143,7 +143,7 @@ ensure_agent_service() {
         print_info "would: elevate to ${OPENSSH_ADMIN_CMD:+install OpenSSH; }${svc_cmd:+configure ssh-agent service}"
         return 0
     fi
-    print_info "Elevating (UAC) to configure Windows OpenSSH/agent..."
+    print_warn "Elevating (UAC) to configure Windows OpenSSH/agent — approve the prompt on Windows..."
     ps_admin "${OPENSSH_ADMIN_CMD:+$OPENSSH_ADMIN_CMD; }$svc_cmd"
     print_success "Windows ssh-agent configured"
 }

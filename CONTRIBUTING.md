@@ -67,6 +67,15 @@ validate_setup.sh
 
 Reports green/yellow/red per item and prints fix commands in dependency order. Most findings consolidate into a single fix — re-running the idempotent `setup.sh`; targeted commands are printed only for what it can't do (repo clone/sync, YubiKey relay, Claude settings deploy).
 
+## GitHub CLI (`gh`) auth
+
+Git transport stays on SSH (YubiKey, touch per use; `gh/.config/gh/config.yml` pins `git_protocol: ssh`). `gh` only needs an API token, which has no hardware-presence check — so keep its power, lifetime and exposure small:
+
+- **Fine-grained PAT**, never classic or the web-login token. Owner = your account (one token covers one owner), only the repos you use `gh` with, **Pull requests read/write + Contents read-only**, no Workflows/Administration. Add a permission only when a call 403s — `gh api -i <endpoint>` shows the needed one in `X-Accepted-GitHub-Permissions`. Fine-grained tokens may not cover `gh gist`.
+- **Short expiry** (30–90 days), **one token per machine**; check last-used and the security log at github.com/settings/security-log.
+- **Install**: `validate_setup.sh` prints the one-liner (`gh auth login --with-token`; paste, Enter, Ctrl-D). With no system keyring (WSL) `gh` silently falls back to plaintext `~/.config/gh/hosts.yml`, so the token's small blast radius is what protects it. Never `export GH_TOKEN` in a profile: every child process, including agents, would inherit it.
+- **Agents**: `gh` is allowlisted for Claude and agy so PR/issue work doesn't prompt, but `gh auth …` always asks (it can print the token), and both agents are denied reading `hosts.yml`. In agy an allowlisted network command runs outside the sandbox.
+
 ## Adding a new stow package
 
 1. Create `~/dotfiles/<package>/` mirroring the target path under `$HOME`

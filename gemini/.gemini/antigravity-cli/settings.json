@@ -33,6 +33,7 @@
       "command(firefox)",
       "command(firefox-esr)",
       "command(free)",
+      "command(gh)",
       "command(git blame)",
       "command(git branch --contains)",
       "command(git branch --list)",
@@ -100,6 +101,7 @@
       "command(pnpm audit)",
       "command(pnpm build)",
       "command(pnpm chrome:smoke)",
+      "command(pnpm chrome:smoke:selenium)",
       "command(pnpm lint)",
       "command(pnpm outdated)",
       "command(pnpm rebuild)",
@@ -113,7 +115,6 @@
       "command(pnpm update)",
       "command(pnpm verify)",
       "command(pre_commit_check.sh)",
-      "command(printenv)",
       "command(ps)",
       "command(pwd)",
       "command(read)",
@@ -142,6 +143,20 @@
       "command(whoami)",
       "command(xxd)",
       "command(~/bin/check_changelog.sh)"
+    ],
+    "ask": [
+      "command(gh auth)"
+    ],
+    "deny": [
+      "read_file(.env)",
+      "read_file(~/.aws)",
+      "read_file(~/.claude/.credentials.json)",
+      "read_file(~/.config/gh/hosts.yml)",
+      "read_file(~/.gemini/antigravity-cli/antigravity-oauth-token)",
+      "read_file(~/.gemini/oauth_creds.json)",
+      "read_file(~/.gnupg)",
+      "read_file(~/.netrc)",
+      "read_file(~/.ssh)"
     ]
   },
   "statusLine": {

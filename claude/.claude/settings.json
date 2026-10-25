@@ -17,6 +17,7 @@
       "Bash(file:*)",
       "Bash(find:*)",
       "Bash(free:*)",
+      "Bash(gh:*)",
       "Bash(git blame:*)",
       "Bash(git branch --contains:*)",
       "Bash(git branch --list:*)",
@@ -83,8 +84,6 @@
       "Bash(pnpm test:uat *)",
       "Bash(pnpm typecheck)",
       "Bash(pre_commit_check.sh*)",
-      "Bash(printenv:*)",
-      "Bash(ps:*)",
       "Bash(pwd:*)",
       "Bash(readlink:*)",
       "Bash(realpath:*)",
@@ -113,6 +112,28 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:www.npmjs.com)",
       "WebSearch"
+    ],
+    "ask": [
+      "Bash(* $HOME/.claude/.credentials.json*)",
+      "Bash(* $HOME/.config/gh/hosts.yml*)",
+      "Bash(* $HOME/.ssh*)",
+      "Bash(* ~/.claude/.credentials.json*)",
+      "Bash(* ~/.config/gh/hosts.yml*)",
+      "Bash(* ~/.ssh*)",
+      "Bash(gh auth *)",
+      "Bash(printenv*)"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(~/.aws/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Read(~/.config/gh/hosts.yml)",
+      "Read(~/.gemini/antigravity-cli/antigravity-oauth-token)",
+      "Read(~/.gemini/oauth_creds.json)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.netrc)",
+      "Read(~/.ssh/**)"
     ]
   },
   "hooks": {

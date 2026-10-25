@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- `setup.sh` prints only on change: dropped the always-on stow, `.bashrc`-loader, SSH-permission and YubiKey-relay banners (permissions now reported only when fixed); the relay's UAC notice survives `-q`.
+- `gh/.config/gh/config.yml`: `git_protocol: ssh` (was `https`) so git transport stays YubiKey-gated and the committed `gh auth git-credential` helper can't push with the API token; `validate_setup.sh` warns (re-stow via `setup.sh`) when it isn't `ssh`.
+- `CONTRIBUTING.md`: document the `gh` auth recipe — least-privilege fine-grained PAT (Pull requests RW + Contents read), short expiry, one per machine, plaintext-on-WSL caveat, never export `GH_TOKEN`.
+- `bin/bin/validate_setup.sh`, `setup.sh`: a missing `gh` login now prints one pasteable line — `gh auth login --with-token` with a trailing pointer to GitHub's fine-grained-token page — instead of the generic `gh auth login`.
 - `agents/AGENTS.md`, `claude/.claude/settings.json`, `gemini/.gemini/antigravity-cli/settings.json`: allow-list read-only shell utilities and read-only/flag-scoped `git` inspection subcommands across both harnesses, and update global command rules so harnesses without dedicated `Grep`/`Glob` tools (like Antigravity) can run bare read-only search/listing commands without approval prompts.
 - `agents/AGENTS.md`: explicitly require `Model: "flash"` / `"flash_lite"` in Antigravity's `invoke_subagent` (and `sonnet` / `haiku` in Claude Code) for all coding and research subagents, overriding `invoke_subagent`'s built-in `Model: "inherit"` default so Argon orchestrators don't spawn Argon subagents.
 - `bin/bin/agy_status.sh`: highlight `Sandbox: On` in green and `Sandbox: Off` in amber.
@@ -23,6 +27,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Fixed
 
 - `bin/bin/agy_status.sh`: read model quota from the stdin payload's `.quota` buckets (`gemini-argon-wtu-weekly`, `gemini-5h`/`gemini-weekly`, `3p-5h`/`3p-weekly`) before falling back to `~/.agy.json`, showing `7d left:` (`MM/DD HH:MM`) for Argon and both `5h left:` (`HH:MM`) and `7d left:` (`MM/DD HH:MM`) for standard Gemini and 3P models.
+
+### Security
+
+- `claude/.claude/settings.json`, `gemini/.gemini/antigravity-cli/settings.json`: allowlist `gh` for both agents, with an `ask` rule on `gh auth` since `gh auth token` / `status --show-token` would print the token and sidestep the `hosts.yml` read denies (scope the PAT; in agy an allowlisted network command runs outside the sandbox).
+- `claude/.claude/settings.json`: add `deny` rules for reads of `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.netrc`, `~/.claude/.credentials.json`, `~/.config/gh/hosts.yml`, the `~/.gemini` OAuth tokens and `.env*`, plus `ask` rules for Bash commands naming those paths or running `printenv`, so secrets can't be read without a prompt; drop the `ps` and `printenv` allows (Claude's built-in read-only check already guards `ps`, including env-printing forms).
+- `setup.sh`, `bin/bin/validate_setup.sh`: sync `permissions.deny`/`ask` like `allow` (previously never deployed), subtract a `RETIRED_ALLOWS` list from every merge so removed allows aren't resurrected by the reverse sync, and report missing deny/ask rules as "Behind template".
+- `gemini/.gemini/antigravity-cli/settings.json`: add `read_file` deny rules (a read deny also blocks writes) for the same credential paths plus Claude's `.credentials.json` — `allowNonWorkspaceAccess` otherwise lets agy's file tools read `~/.ssh` — and drop the `printenv` allow. Paths are stored portably as `~/…` because agy documents only absolute paths and silently ignores rules it can't match; `.env` is workspace-root only.
+- `setup.sh`, `bin/bin/validate_setup.sh`: expand the agy template's `~/` path rules to absolute paths in the deployed copy (also on first deploy) and collapse them back for comparison and reverse sync, so the template stays portable across usernames and `validate_setup.sh` doesn't flag a false drift.
+- `agents/AGENTS.md`: credential files are off-limits; if one is refused or prompts, stop and tell the user instead of routing around it with another tool.
 
 ## [2026-10-24]
 

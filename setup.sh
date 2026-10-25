@@ -11,6 +11,13 @@ PREREQS=(git curl stow age unzip)
 APT_PACKAGES=(build-essential jq tmux)
 STOW_SKIP=(.git agents claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
+# jq helpers for Antigravity path rules (needs --arg home "$HOME"). agy documents only absolute
+# paths for read_file()/write_file() (no `~`, no globs) and silently ignores rules it can't match,
+# so the template stores them portably as `~/…`: `expand` makes them absolute in a deployed copy,
+# `collapse` maps an absolute path under $home back to `~/` so both sides compare in portable form.
+JQ_PATH_DEFS='def pr: ([capture("^(?<a>read_file|write_file)\\((?<p>.*)\\)$")][0]);
+  def collapse: pr as $m | if $m and ($m.p | startswith($home + "/")) then "\($m.a)(~/\($m.p | ltrimstr($home + "/")))" else . end;
+  def expand: pr as $m | if $m and ($m.p | startswith("~/")) then "\($m.a)(\($home)/\($m.p | ltrimstr("~/")))" else . end;'
 
 # Install the setup prerequisites if missing (apt update only in -update mode)
 _need_prereqs=false
@@ -122,12 +129,9 @@ if ! grep -q "Custom Dotfiles Loader" ~/.bashrc; then
     echo "Appending custom loader to ~/.bashrc..."
     echo "$BASHDOT" >> ~/.bashrc
     NEEDS_RESTART=true
-else
-    echo "Custom loader already exists in .bashrc, skipping..."
 fi
 
 # Auto-discover and link stow packages
-echo "Linking dotfiles with Stow..."
 mkdir -p ~/.claude  # must exist as real dir before stow (Claude Code writes other files here)
 mkdir -p ~/.ssh && chmod 700 ~/.ssh # prevent stow from folding .ssh into a symlink (generated files must not land in repo)
 mkdir -p ~/.config/gh # real dir so stow links config.yml individually; gh's secret hosts.yml then stays in $HOME, not the repo
@@ -186,15 +190,32 @@ chmod +x "$HOME"/bin/*.sh 2>/dev/null || true
 # computes the merge, then writes ONLY when the result differs from dest as JSON (jq ==
 # ignores formatting/key order) — a reported merge always means a real change. Writes in
 # place via redirect, never mv/tmp-file: dest keeps its inode (hardlinks/symlinks survive).
-merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src) $4=message
+merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src, $retired=RETIRED_ALLOWS, $home=$HOME) $4=message
     local _merged
-    _merged=$(jq -s "$3" "$1" "$2") || return 1
+    _merged=$(jq -s --argjson retired "$RETIRED_ALLOWS" --arg home "$HOME" "$3" "$1" "$2") || return 1
     if ! jq -e --argjson m "$_merged" '. == $m' "$1" >/dev/null; then
         printf '%s\n' "$_merged" > "$1" && echo "$4"
     fi
 }
-# Union of allow lists (dest ⊇ src), all other dest keys untouched — shared by every merge
-ALLOWS_UNION='.[0] * {permissions: {allow: ((.[0].permissions.allow // []) + .[1].permissions.allow | unique)}}'
+# Allows that must never be (re)granted. A union-only sync can't delete, and the reverse sync below
+# would resurrect any entry still present locally, so removals are listed here and subtracted from
+# every merge result (dest and template alike). Claude's own read-only analysis covers `ps`
+# (it prompts for env-printing forms like `ps auxe`) — an explicit allow bypasses that guard — and
+# `printenv` (Claude and agy alike) dumps every secret in the environment.
+RETIRED_ALLOWS='["Bash(printenv:*)","Bash(ps:*)","command(printenv)"]'
+# Union of the permission lists (dest ⊇ src) minus RETIRED_ALLOWS, all other dest keys untouched —
+# shared by every merge. `allow` is always unioned; `deny`/`ask` only when either side defines them,
+# so a template without them never gains empty arrays. Path rules are compared (and the result is
+# produced) in portable `~/` form — see JQ_PATH_DEFS; deploying into a local file expands them.
+ALLOWS_UNION='( . as $in
+  | '"$JQ_PATH_DEFS"'
+    def u($k): ((($in[0].permissions[$k] // []) + ($in[1].permissions[$k] // [])) | map(collapse) | unique);
+    $in[0] * {permissions: ({allow: u("allow")}
+      + (["deny","ask"] | map(select($in[0].permissions[.] != null or $in[1].permissions[.] != null) | {(.): u(.)}) | add // {}))}
+  | .permissions.allow -= $retired )'
+# Same union, then expand `~/` path rules to absolute for a deployed (local) agy settings file
+ALLOWS_UNION_LOCAL='( '"$ALLOWS_UNION"'
+  | '"$JQ_PATH_DEFS"' .permissions |= with_entries(.value |= map(expand)) )'
 
 # Deploy Claude settings.json from template (not via stow to allow local customization),
 # then keep forward-merging template allows so allows committed on other machines propagate.
@@ -273,10 +294,14 @@ if [[ "$SSH_LOCAL" == true ]]; then
         ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub
     fi
 fi
-echo "Fixing remaining SSH permissions..."
-chmod 700 ~/.ssh
-[ -f ~/.ssh/id_ed25519 ] && chmod 600 ~/.ssh/id_ed25519
-[ -f ~/.ssh/config ] && chmod 644 ~/.ssh/config
+_fixed_perms=false
+for _perm in 700:~/.ssh 600:~/.ssh/id_ed25519 644:~/.ssh/config; do
+    _mode=${_perm%%:*}; _path=${_perm#*:}; _path=${_path/#\~/$HOME}
+    if [ -f "$_path" ] || [ -d "$_path" ]; then
+        [ "$(stat -Lc %a "$_path")" != "$_mode" ] && chmod "$_mode" "$_path" && _fixed_perms=true
+    fi
+done
+$_fixed_perms && echo "Fixed SSH permissions"
 
 # Switch dotfiles remote from HTTPS to SSH now that keys are in place
 current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
@@ -462,10 +487,11 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
         # Allows union + statusLine/hooks/title/enableTerminalSandbox parity, but only for keys the template
         # actually has (a missing template key must never inject null or erase local values)
         merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
-            "$ALLOWS_UNION * (.[1] | {statusLine, hooks, title, enableTerminalSandbox} | with_entries(select(.value != null)))" \
+            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, enableTerminalSandbox} | with_entries(select(.value != null)))" \
             "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
-        cp "$AGY_TEMPLATE" "$AGY_SETTINGS"
+        # Not a plain cp: the template's portable `~/` path rules must be made absolute for agy
+        jq --arg home "$HOME" "$JQ_PATH_DEFS .permissions |= with_entries(.value |= map(expand))" "$AGY_TEMPLATE" > "$AGY_SETTINGS"
         echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
     fi
 fi
@@ -503,7 +529,6 @@ fi
 # Idempotent; only prompts (UAC / YubiKey touch) for pieces that are missing.
 if [[ "$SSH_YUBIKEY" == true ]] && grep -qi microsoft /proc/version 2>/dev/null; then
     [ ! -f "$HOME/.config/dotfiles/ssh_agent.env" ] && NEEDS_RESTART=true
-    echo "Configuring Windows ssh-agent (YubiKey) relay..."
     bash "$DOTFILES_DIR/bin/bin/wsl_ssh_agent.sh" -q || echo "wsl_ssh_agent.sh reported issues — run it manually to finish."
 fi
 
@@ -541,5 +566,5 @@ echo "To update packages and toolchains, run:"
 echo "  validate_setup.sh -u"
 echo ""
 if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
-    echo "Reminder: run 'gh auth login' to authenticate the GitHub CLI."
+    echo "Reminder: authenticate the GitHub CLI — get a fine-grained PAT at https://github.com/settings/personal-access-tokens, then run: gh auth login --with-token  (silent: paste the token, Enter, Ctrl-D)"
 fi
