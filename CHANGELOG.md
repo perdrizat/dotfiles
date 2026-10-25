@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-10-25]
+
+### Fixed
+
+- `bin/bin/agy_status.sh`: read model quota from the stdin payload's `.quota` buckets (`gemini-argon-wtu-weekly`, `gemini-5h`/`gemini-weekly`, `3p-5h`/`3p-weekly`) before falling back to `~/.agy.json`, showing `7d left:` (`MM/DD HH:MM`) for Argon and both `5h left:` (`HH:MM`) and `7d left:` (`MM/DD HH:MM`) for standard Gemini and 3P models.
+
 ## [2026-10-24]
 
 ### Changed

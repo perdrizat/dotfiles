@@ -72,25 +72,79 @@ cache_k=$(( CACHE_INPUT_TOKENS / 1000 ))
 # Sandbox mapping
 [[ "$SANDBOX_ENABLED" == "true" ]] && SANDBOX_LABEL="On" || SANDBOX_LABEL="Off"
 
-# --- 4. FETCH QUOTA & CREDITS FROM CACHE ---
-QUOTA_PCT="?"
-RESET_TIME="?"
+# --- 4. FETCH QUOTA & CREDITS ---
+# Newer agy versions pass bucketed quotas directly in the stdin JSON under .quota
+# (gemini-argon-wtu-weekly, gemini-5h, gemini-weekly, 3p-5h, 3p-weekly), reporting
+# remaining_fraction (what's left). Standard Gemini and 3P models have both a 5h
+# and a 7d (weekly) window; Argon only has a 7d window.
 PROMPT_CREDITS="?"
 FLOW_CREDITS="?"
 
-if [[ -f "$AGY_CACHE" && "$MODEL_NAME" != "?" ]]; then
-    # Get model-specific quota info
-    remaining_fraction=$(jq -r --arg model "$MODEL_NAME" 'first(.userStatus.cascadeModelConfigData.clientModelConfigs[] | select(.label == $model) | .quotaInfo.remainingFraction // empty)' "$AGY_CACHE" 2>/dev/null)
-    reset_utc=$(jq -r --arg model "$MODEL_NAME" 'first(.userStatus.cascadeModelConfigData.clientModelConfigs[] | select(.label == $model) | .quotaInfo.resetTime // empty)' "$AGY_CACHE" 2>/dev/null)
-    
-    if [[ -n "$remaining_fraction" && "$remaining_fraction" != "null" ]]; then
-        QUOTA_PCT=$(echo "$remaining_fraction * 100" | bc -l | xargs printf "%.0f")
+format_reset() {
+    local utc=$1
+    local fmt=$2
+    [[ -z "$utc" || "$utc" == "null" ]] && { echo "?"; return; }
+    local ts
+    ts=$(date -d "$utc" +%s 2>/dev/null || echo 0)
+    (( ts > 0 )) && date -d @"$ts" +"$fmt" 2>/dev/null || echo "?"
+}
+
+parse_bucket_pct() {
+    local frac=$1
+    if [[ -n "$frac" && "$frac" != "null" ]]; then
+        echo "$frac * 100" | bc -l | xargs printf "%.0f"
+    else
+        echo "?"
     fi
-    if [[ -n "$reset_utc" && "$reset_utc" != "null" ]]; then
-        # Convert UTC reset time to local time (HH:MM)
-        RESET_TIME=$(date -d "$reset_utc" +"%H:%M" 2>/dev/null || echo "?")
+}
+
+model_lc="${MODEL_NAME,,}"
+has_5h=0
+has_7d=0
+QUOTA_5H_PCT="?"
+RESET_5H="?"
+QUOTA_7D_PCT="?"
+RESET_7D="?"
+
+if [[ "$model_lc" == *argon* ]]; then
+    has_7d=1
+    frac_7d=$(echo "$INPUT_JSON" | jq -r '.quota["gemini-argon-wtu-weekly"].remaining_fraction // empty' 2>/dev/null)
+    utc_7d=$(echo "$INPUT_JSON" | jq -r '.quota["gemini-argon-wtu-weekly"].reset_time // empty' 2>/dev/null)
+    QUOTA_7D_PCT=$(parse_bucket_pct "$frac_7d")
+    RESET_7D=$(format_reset "$utc_7d" "%m/%d %H:%M")
+elif [[ "$model_lc" == *gemini* ]]; then
+    has_5h=1
+    has_7d=1
+    frac_5h=$(echo "$INPUT_JSON" | jq -r '.quota["gemini-5h"].remaining_fraction // empty' 2>/dev/null)
+    utc_5h=$(echo "$INPUT_JSON" | jq -r '.quota["gemini-5h"].reset_time // empty' 2>/dev/null)
+    frac_7d=$(echo "$INPUT_JSON" | jq -r '.quota["gemini-weekly"].remaining_fraction // empty' 2>/dev/null)
+    utc_7d=$(echo "$INPUT_JSON" | jq -r '.quota["gemini-weekly"].reset_time // empty' 2>/dev/null)
+    QUOTA_5H_PCT=$(parse_bucket_pct "$frac_5h")
+    RESET_5H=$(format_reset "$utc_5h" "%H:%M")
+    QUOTA_7D_PCT=$(parse_bucket_pct "$frac_7d")
+    RESET_7D=$(format_reset "$utc_7d" "%m/%d %H:%M")
+elif [[ "$model_lc" != "?" ]]; then
+    has_5h=1
+    has_7d=1
+    frac_5h=$(echo "$INPUT_JSON" | jq -r '.quota["3p-5h"].remaining_fraction // empty' 2>/dev/null)
+    utc_5h=$(echo "$INPUT_JSON" | jq -r '.quota["3p-5h"].reset_time // empty' 2>/dev/null)
+    frac_7d=$(echo "$INPUT_JSON" | jq -r '.quota["3p-weekly"].remaining_fraction // empty' 2>/dev/null)
+    utc_7d=$(echo "$INPUT_JSON" | jq -r '.quota["3p-weekly"].reset_time // empty' 2>/dev/null)
+    QUOTA_5H_PCT=$(parse_bucket_pct "$frac_5h")
+    RESET_5H=$(format_reset "$utc_5h" "%H:%M")
+    QUOTA_7D_PCT=$(parse_bucket_pct "$frac_7d")
+    RESET_7D=$(format_reset "$utc_7d" "%m/%d %H:%M")
+fi
+
+if [[ -f "$AGY_CACHE" ]]; then
+    # Fallback to cached GetUserStatus if stdin had no quota for a 5h model
+    if (( has_5h )) && [[ "$QUOTA_5H_PCT" == "?" && "$MODEL_NAME" != "?" ]]; then
+        frac_5h=$(jq -r --arg model "$MODEL_NAME" 'first(.userStatus.cascadeModelConfigData.clientModelConfigs[] | select(.label == $model) | .quotaInfo.remainingFraction // empty)' "$AGY_CACHE" 2>/dev/null)
+        utc_5h=$(jq -r --arg model "$MODEL_NAME" 'first(.userStatus.cascadeModelConfigData.clientModelConfigs[] | select(.label == $model) | .quotaInfo.resetTime // empty)' "$AGY_CACHE" 2>/dev/null)
+        QUOTA_5H_PCT=$(parse_bucket_pct "$frac_5h")
+        RESET_5H=$(format_reset "$utc_5h" "%H:%M")
     fi
-    
+
     # Get global credits
     PROMPT_CREDITS=$(jq -r '.userStatus.planStatus.availablePromptCredits // "?"' "$AGY_CACHE" 2>/dev/null)
     FLOW_CREDITS=$(jq -r '.userStatus.planStatus.availableFlowCredits // "?"' "$AGY_CACHE" 2>/dev/null)
@@ -156,5 +210,12 @@ printf "${BLUE}%s${RESET} ${GRAY}with${RESET} ${CYAN}%sk/%s${RESET} ${GRAY}conte
     "$MODEL_NAME" "$used_ctx_k" "$CONTEXT_DISPLAY" "$ctx_pct_int" "$cache_k" "$AGENT_STATE"
 
 # Line 2: Global API status
-printf "${GRAY}Quota left:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}Credits:${RESET} %s prompts, %s flow ${GRAY}|${RESET} ${GRAY}Sandbox:${RESET} ${sandbox_color}%s${RESET}\n" \
-    "$(draw_dots "$QUOTA_PCT")" "$RESET_TIME" "$PROMPT_CREDITS" "$FLOW_CREDITS" "$SANDBOX_LABEL"
+if (( has_5h && has_7d )); then
+    quota_segment=$(printf "${GRAY}5h left:${RESET} %s ${GRAY}till %s${RESET} ${GRAY}|${RESET} ${GRAY}7d left:${RESET} %s ${GRAY}till %s${RESET}" \
+        "$(draw_dots "$QUOTA_5H_PCT")" "$RESET_5H" "$(draw_dots "$QUOTA_7D_PCT")" "$RESET_7D")
+else
+    quota_segment=$(printf "${GRAY}7d left:${RESET} %s ${GRAY}till %s${RESET}" \
+        "$(draw_dots "$QUOTA_7D_PCT")" "$RESET_7D")
+fi
+printf "%s ${GRAY}|${RESET} ${GRAY}Credits:${RESET} %s prompts, %s flow ${GRAY}|${RESET} ${GRAY}Sandbox:${RESET} ${sandbox_color}%s${RESET}\n" \
+    "$quota_segment" "$PROMPT_CREDITS" "$FLOW_CREDITS" "$SANDBOX_LABEL"
