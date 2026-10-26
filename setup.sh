@@ -202,17 +202,16 @@ merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src, $retire
 # every merge result (dest and template alike). Claude's own read-only analysis covers `ps`
 # (it prompts for env-printing forms like `ps auxe`) — an explicit allow bypasses that guard — and
 # `printenv` (Claude and agy alike) dumps every secret in the environment.
-RETIRED_ALLOWS='["Bash(printenv:*)","Bash(ps:*)","command(printenv)"]'
+RETIRED_ALLOWS='["Bash(printenv:*)","Bash(ps:*)","command(printenv)","read_file(.env)"]'
 # Union of the permission lists (dest ⊇ src) minus RETIRED_ALLOWS, all other dest keys untouched —
 # shared by every merge. `allow` is always unioned; `deny`/`ask` only when either side defines them,
 # so a template without them never gains empty arrays. Path rules are compared (and the result is
 # produced) in portable `~/` form — see JQ_PATH_DEFS; deploying into a local file expands them.
 ALLOWS_UNION='( . as $in
   | '"$JQ_PATH_DEFS"'
-    def u($k): ((($in[0].permissions[$k] // []) + ($in[1].permissions[$k] // [])) | map(collapse) | unique);
+    def u($k): (((($in[0].permissions[$k] // []) + ($in[1].permissions[$k] // [])) | map(collapse) | unique) - $retired);
     $in[0] * {permissions: ({allow: u("allow")}
-      + (["deny","ask"] | map(select($in[0].permissions[.] != null or $in[1].permissions[.] != null) | {(.): u(.)}) | add // {}))}
-  | .permissions.allow -= $retired )'
+      + (["deny","ask"] | map(select($in[0].permissions[.] != null or $in[1].permissions[.] != null) | {(.): u(.)}) | add // {}))} )'
 # Same union, then expand `~/` path rules to absolute for a deployed (local) agy settings file
 ALLOWS_UNION_LOCAL='( '"$ALLOWS_UNION"'
   | '"$JQ_PATH_DEFS"' .permissions |= with_entries(.value |= map(expand)) )'
@@ -484,15 +483,31 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
     AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
     if [[ -f "$AGY_SETTINGS" ]]; then
-        # Allows union + statusLine/hooks/title/enableTerminalSandbox parity, but only for keys the template
+        # Allows union + statusLine/hooks/title/enableTerminalSandbox/agentMode parity, but only for keys the template
         # actually has (a missing template key must never inject null or erase local values)
         merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
-            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, enableTerminalSandbox} | with_entries(select(.value != null)))" \
+            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, enableTerminalSandbox, agentMode} | with_entries(select(.value != null)))" \
             "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
         # Not a plain cp: the template's portable `~/` path rules must be made absolute for agy
         jq --arg home "$HOME" "$JQ_PATH_DEFS .permissions |= with_entries(.value |= map(expand))" "$AGY_TEMPLATE" > "$AGY_SETTINGS"
         echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
+    fi
+    # Deploy/merge agy MCP server config from template (preserves local auth headers / custom servers)
+    mkdir -p ~/.gemini/config
+    AGY_MCP_CONFIG="$HOME/.gemini/config/mcp_config.json"
+    AGY_MCP_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/config/mcp_config.json.template"
+    if [ -f "$AGY_MCP_TEMPLATE" ]; then
+        if [[ -f "$AGY_MCP_CONFIG" ]]; then
+            _merged_mcp=$(jq -s '.[1] as $tmpl | .[0] | .mcpServers = (($tmpl.mcpServers // {}) * (.mcpServers // {}))' "$AGY_MCP_CONFIG" "$AGY_MCP_TEMPLATE" 2>/dev/null)
+            if [ -n "$_merged_mcp" ] && ! jq -e --argjson m "$_merged_mcp" '. == $m' "$AGY_MCP_CONFIG" >/dev/null 2>&1; then
+                printf '%s\n' "$_merged_mcp" > "$AGY_MCP_CONFIG"
+                echo "Merged MCP servers template into ~/.gemini/config/mcp_config.json"
+            fi
+        else
+            cp "$AGY_MCP_TEMPLATE" "$AGY_MCP_CONFIG"
+            echo "Deployed mcp_config.json template to ~/.gemini/config/mcp_config.json"
+        fi
     fi
 fi
 
@@ -568,4 +583,12 @@ echo ""
 if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
     echo "gh not authenticated. New PAT: https://github.com/settings/personal-access-tokens"
     echo "Then: gh auth login --with-token   (silent: paste token, hit Enter, type Ctrl-D)"
+fi
+if [[ "$INSTALL_ANTIGRAVITY" == true ]] && [ -f "$HOME/.gemini/config/mcp_config.json" ]; then
+    _has_linear_auth=$(jq -r '.mcpServers.linear.headers.Authorization // empty' "$HOME/.gemini/config/mcp_config.json" 2>/dev/null)
+    if [ -z "$_has_linear_auth" ]; then
+        echo ""
+        echo "Linear MCP not authenticated. Personal API key: https://linear.app/settings/api"
+        echo "Then: agy mcp add --header \"Authorization: Bearer <TOKEN>\" linear https://mcp.linear.app/mcp"
+    fi
 fi

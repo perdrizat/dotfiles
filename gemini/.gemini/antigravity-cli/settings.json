@@ -1,4 +1,5 @@
 {
+  "agentMode": "accept-edits",
   "allowNonWorkspaceAccess": true,
   "colorScheme": "dark",
   "enableTelemetry": false,
@@ -145,17 +146,24 @@
       "command(which)",
       "command(whoami)",
       "command(xxd)",
-      "command(~/bin/check_changelog.sh)"
+      "command(~/bin/check_changelog.sh)",
+      "mcp(linear/get_issue)",
+      "mcp(linear/get_workspace)",
+      "mcp(linear/list_issue_statuses)",
+      "mcp(linear/list_issues)",
+      "mcp(linear/list_projects)",
+      "mcp(linear/save_issue)"
     ],
     "ask": [
       "command(gh auth)"
     ],
     "deny": [
-      "read_file(.env)",
       "read_file(~/.aws)",
       "read_file(~/.claude/.credentials.json)",
       "read_file(~/.config/gh/hosts.yml)",
+      "read_file(~/.env)",
       "read_file(~/.gemini/antigravity-cli/antigravity-oauth-token)",
+      "read_file(~/.gemini/config/mcp_config.json)",
       "read_file(~/.gemini/oauth_creds.json)",
       "read_file(~/.gnupg)",
       "read_file(~/.netrc)",

@@ -19,7 +19,7 @@ Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific
 - **Node Ecosystem**: Always use `fnm` for Node version management and `pnpm` for package management.
 - **Dependency Security**: When using `pnpm`, restrict installation to packages that are at least 7 days old.
 - **Auditing**: Always run GitHub CI to audit the dependencies.
-- **Credential files are off-limits**: Never read, print, copy, or encode secrets — `~/.ssh` keys, `~/.claude/.credentials.json`, `~/.config/gh/hosts.yml`, `~/.gnupg`, `~/.aws`, the `~/.gemini` OAuth tokens, `.env` files, or the environment (`printenv`/`env`). Settings deny or prompt on these. If one is refused or prompts, stop and tell the user; don't route around it with another tool (`jq`, `xxd`, `base64`, `cp`, a script).
+- **Credential files are off-limits**: Never read, print, copy, or encode secrets — `~/.ssh` keys, `~/.claude/.credentials.json`, `~/.config/gh/hosts.yml`, `~/.gnupg`, `~/.aws`, the `~/.gemini` OAuth tokens and `~/.gemini/config/mcp_config.json`, `.env` files, or the environment (`printenv`/`env`). Settings deny or prompt on these. If one is refused or prompts, stop and tell the user; don't route around it with another tool (`jq`, `xxd`, `base64`, `cp`, a script).
 
 ## Running commands (efficiency & safety)
 

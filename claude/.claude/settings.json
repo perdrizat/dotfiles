@@ -130,6 +130,7 @@
       "Read(~/.claude/.credentials.json)",
       "Read(~/.config/gh/hosts.yml)",
       "Read(~/.gemini/antigravity-cli/antigravity-oauth-token)",
+      "Read(~/.gemini/config/mcp_config.json)",
       "Read(~/.gemini/oauth_creds.json)",
       "Read(~/.gnupg/**)",
       "Read(~/.netrc)",

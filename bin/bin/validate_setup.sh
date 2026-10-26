@@ -311,6 +311,8 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
         [[ "$relative" == *antigravity-cli* ]] && continue
         # Skip settings.json (deployed from template, not via stow)
         [[ "$(basename "$relative")" == settings.json ]] && continue
+        # Skip mcp_config templates (deployed from template, not via stow)
+        [[ "$(basename "$relative")" == *mcp_config* ]] && continue
         git -C "$DOTFILES_DIR" check-ignore -q "$file" 2>/dev/null && continue
         # Skip files under directories already folded by stow
         skip=false
@@ -413,7 +415,7 @@ elif [ -L "$AGY_SETTINGS" ]; then
     print_row "agy settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("agy-settings-symlink")
 elif [ -f "$AGY_SETTINGS" ]; then
-    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox")
+    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox" "agentMode")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do
@@ -446,6 +448,27 @@ elif [ -f "$AGY_SETTINGS" ]; then
 else
     print_row "agy settings.json" "${RED}x Missing${NC}" "run setup.sh to create/merge from template"
     missing_items+=("agy-settings")
+fi
+
+AGY_MCP="$HOME/.gemini/config/mcp_config.json"
+if [ -L "$HOME/.gemini/config" ]; then
+    print_row "agy config dir" "${RED}x Stow symlink${NC}" "agy writes into repo — run setup.sh to unfold"
+    missing_items+=("agy-config-dir")
+elif [ -f "$AGY_MCP" ]; then
+    if jq -e '.mcpServers.linear' "$AGY_MCP" >/dev/null 2>&1; then
+        if jq -e '.mcpServers.linear.headers.Authorization and (.mcpServers.linear.headers.Authorization | length > 0)' "$AGY_MCP" >/dev/null 2>&1; then
+            print_row "agy mcp: linear" "${GREEN}✓ Authenticated${NC}" "https://mcp.linear.app/mcp"
+        else
+            print_row "agy mcp: linear" "${YELLOW}~ Not authenticated${NC}" "API key missing"
+            missing_items+=("agy-linear-auth")
+        fi
+    else
+        print_row "agy mcp: linear" "${YELLOW}~ Missing${NC}" "run setup.sh to configure from template"
+        missing_items+=("agy-mcp-config")
+    fi
+else
+    print_row "agy mcp_config.json" "${RED}x Missing${NC}" "run setup.sh to create from template"
+    missing_items+=("agy-mcp-config")
 fi
 fi
 
@@ -858,7 +881,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows|agy-mcp-config|agy-config-dir)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;
@@ -918,6 +941,10 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
             # One pasteable line: `--with-token` reads the PAT from stdin (paste, Enter, Ctrl-D),
             # and GitHub only shows a token once at creation, so "look up" means regenerate on that page.
             printf "\n  gh auth login --with-token  ${CYAN}# paste a fine-grained PAT, Enter, Ctrl-D — create/regenerate at https://github.com/settings/personal-access-tokens${NC}\n"
+            ;;
+        agy-linear-auth)
+            printf "\n  ${CYAN}# Authenticate agy Linear MCP server (personal API key from https://linear.app/settings/api)${NC}\n"
+            echo "  agy mcp add --header \"Authorization: Bearer <LINEAR_API_KEY>\" linear https://mcp.linear.app/mcp"
             ;;
     esac
 done

@@ -22,7 +22,7 @@ Each top-level directory is a stow package. Running `stow --adopt <package>` fro
 | `bash`   | `.bash_aliases`, `.bash_extra`      |
 | `bin`    | `~/bin/` scripts (status, validate, init) |
 | `claude` | `~/.claude/settings.json`           |
-| `gemini` | `~/.gemini/config/skills` + `skills.inactive` (Antigravity `agy` skills). Also carries the `agy` settings **template** (`antigravity-cli/settings.json`) — excluded from stow via `.stow-local-ignore`; `setup.sh` deploys/merges it as a local copy, never a symlink |
+| `gemini` | `~/.gemini/config/skills` + `skills.inactive` (Antigravity `agy` skills). Also carries the `agy` settings template (`antigravity-cli/settings.json`) and MCP config template (`config/mcp_config.json.template`) — excluded from stow via `.stow-local-ignore`; `setup.sh` deploys/merges them as local files, never symlinks |
 | `git`    | `.gitconfig`                        |
 | `ssh`    | `.ssh/config`, `.ssh/id_ed25519.age` |
 
@@ -71,10 +71,19 @@ Reports green/yellow/red per item and prints fix commands in dependency order. M
 
 Git transport stays on SSH (YubiKey, touch per use; `gh/.config/gh/config.yml` pins `git_protocol: ssh`). `gh` only needs an API token, which has no hardware-presence check — so keep its power, lifetime and exposure small:
 
-- **Fine-grained PAT**, never classic or the web-login token. Owner = your account (one token covers one owner), only the repos you use `gh` with, **Pull requests read/write + Contents read-only**, no Workflows/Administration. Add a permission only when a call 403s — `gh api -i <endpoint>` shows the needed one in `X-Accepted-GitHub-Permissions`. Fine-grained tokens may not cover `gh gist`.
+- **Fine-grained PAT**, never classic or the web-login token. Owner = your account (one token covers one owner), only the repos you use `gh` with, **Pull requests read/write + Issues read/write + Contents read-only**, no Workflows/Administration. Permissions and repo list can be edited on an existing token without changing its value. Add a permission only when a call 403s — `gh api -i <endpoint>` shows the needed one in `X-Accepted-GitHub-Permissions`. Fine-grained tokens may not cover `gh gist`.
 - **Short expiry** (30–90 days), **one token per machine**; check last-used and the security log at github.com/settings/security-log.
 - **Install**: `validate_setup.sh` prints the one-liner (`gh auth login --with-token`; paste, Enter, Ctrl-D). With no system keyring (WSL) `gh` silently falls back to plaintext `~/.config/gh/hosts.yml`, so the token's small blast radius is what protects it. Never `export GH_TOKEN` in a profile: every child process, including agents, would inherit it.
 - **Agents**: `gh` is allowlisted for Claude and agy so PR/issue work doesn't prompt, but `gh auth …` always asks (it can print the token), and both agents are denied reading `hosts.yml`. In agy an allowlisted network command runs outside the sandbox.
+
+## Antigravity MCP auth (Linear)
+
+Remote MCP servers (such as Linear Streamable HTTP at `https://mcp.linear.app/mcp`) require API tokens configured in `~/.gemini/config/mcp_config.json`:
+
+- **Personal API Key**: Generate in Linear under Settings > Account > API.
+- **Never committed**: `mcp_config.json` holds the plaintext `Authorization: Bearer <TOKEN>` header and is excluded from stow and git. The dotfiles repo carries a sanitized template (`gemini/.gemini/config/mcp_config.json.template`) that `setup.sh` merges into `$HOME` while preserving any existing local tokens and servers.
+- **Install**: On a new devbox, `validate_setup.sh` prints the one-liner (`agy mcp add --header "Authorization: Bearer <LINEAR_API_KEY>" linear https://mcp.linear.app/mcp`).
+- **Agents**: Linear MCP tools (`get_issue`, `save_issue`, etc.) are allowlisted in `settings.json`, and agents are denied reading `mcp_config.json`.
 
 ## Adding a new stow package
 

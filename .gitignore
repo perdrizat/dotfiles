@@ -8,3 +8,5 @@ AGENTS.md
 .tmp/
 # gh auth token — never commit (stow folding can drop it in this tree)
 gh/.config/gh/hosts.yml
+# agy mcp config — contains API key/token, never commit
+gemini/.gemini/config/mcp_config.json

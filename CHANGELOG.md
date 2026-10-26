@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-10-26]
+
+### Added
+
+- `gemini/.gemini/config/mcp_config.json.template`: template for Linear Streamable HTTP MCP server (`https://mcp.linear.app/mcp`), deployed/merged via `setup.sh`.
+- `bin/bin/validate_setup.sh`, `setup.sh`: validate Antigravity Linear MCP configuration and authentication status, printing `agy mcp add --header ...` on missing token.
+
+### Changed
+
+- `CONTRIBUTING.md`: document Antigravity MCP authentication workflow and update `gh` PAT recipe to note Issues read/write.
+- `gemini/.gemini/antigravity-cli/settings.json`: allow six Linear MCP tools (`get_issue`, `get_workspace`, `list_issue_statuses`, `list_issues`, `list_projects`, `save_issue`).
+- `gemini/.gemini/antigravity-cli/settings.json`, `setup.sh`, `bin/bin/validate_setup.sh`: set Antigravity default execution mode to accept-edits (`agentMode: accept-edits`).
+
+### Fixed
+
+- `gemini/.gemini/antigravity-cli/settings.json`, `setup.sh`: retire `read_file(.env)` and map to `read_file(~/.env)` so agy's terminal sandbox does not fail on non-absolute deny path.
+
+### Security
+
+- `claude/.claude/settings.json`, `gemini/.gemini/antigravity-cli/settings.json`, `agents/AGENTS.md`: add `mcp_config.json` to agent read denies and off-limits credential files.
+- `.gitignore`, `gemini/.stow-local-ignore`: ignore `mcp_config.json` from git and stow to prevent committing plaintext API keys.
+
 ## [2026-10-25]
 
 ### Changed
