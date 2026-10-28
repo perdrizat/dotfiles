@@ -69,7 +69,7 @@ Reports green/yellow/red per item and prints fix commands in dependency order. M
 
 ## GitHub CLI (`gh`) auth
 
-Git transport stays on SSH (YubiKey, touch per use; `gh/.config/gh/config.yml` pins `git_protocol: ssh`). `gh` only needs an API token, which has no hardware-presence check — so keep its power, lifetime and exposure small:
+Git transport is SSH only where a key exists — `SSH_YUBIKEY` (touch per use) or `SSH_LOCAL` in `.setup.conf` — and HTTPS everywhere else (e.g. devbox containers), where git pushes with the `gh` token. `setup.sh` derives both the dotfiles remote and `gh`'s `git_protocol` from that; `gh/.config/gh/config.yml` is a template deployed as a local copy (not stowed), since it differs per machine and `gh` rewrites it. An HTTPS machine also skips the `ssh` stow package. The API token has no hardware-presence check — so keep its power, lifetime and exposure small:
 
 - **Fine-grained PAT**, never classic or the web-login token. Owner = your account (one token covers one owner), only the repos you use `gh` with, **Pull requests read/write + Issues read/write + Contents read-only**, no Workflows/Administration. Permissions and repo list can be edited on an existing token without changing its value. Add a permission only when a call 403s — `gh api -i <endpoint>` shows the needed one in `X-Accepted-GitHub-Permissions`. Fine-grained tokens may not cover `gh gist`.
 - **Short expiry** (30–90 days), **one token per machine**; check last-used and the security log at github.com/settings/security-log.
@@ -92,7 +92,7 @@ Remote MCP servers (such as Linear Streamable HTTP at `https://mcp.linear.app/mc
 
 ## Key files
 
-- `setup.sh` — **Must be self-contained** (curl-piped on fresh machines before the repo exists). Shared variables (`PREREQS`, `APT_PACKAGES`, `STOW_SKIP`) are defined here and sourced by `validate_setup.sh` via a guard (`[[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0`)
+- `setup.sh` — Runs without sudo too (detected via `command -v sudo`): apt/system steps are skipped with a warning, for rootless containers whose image provides those packages. **Must be self-contained** (curl-piped on fresh machines before the repo exists). Shared variables (`PREREQS`, `APT_PACKAGES`, `STOW_SKIP`) are defined here and sourced by `validate_setup.sh` via a guard (`[[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0`)
 - `agents/AGENTS.md` — Single source of truth for global LLM agent instructions
 - `bin/bin/validate_setup.sh` — Health check for the entire setup
 - `bin/bin/init_project.sh` — Bootstrap CONTRIBUTING.md + CLAUDE.md symlink + CHANGELOG.md in a new project

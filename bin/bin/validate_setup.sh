@@ -85,8 +85,12 @@ if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
     printf "${BOLD}Updating packages and toolchains${NC}\n"
 
     # 1. APT packages first (dependencies for other tools)
-    printf "\n${CYAN}Updating apt packages${NC}\n"
-    sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
+    if $CAN_SUDO; then
+        printf "\n${CYAN}Updating apt packages${NC}\n"
+        sudo apt update && sudo apt upgrade -y && sudo apt autoremove -y
+    else
+        printf "\n${YELLOW}~ No sudo — skipping apt updates (rebuild the image instead)${NC}\n"
+    fi
 
     # 2. Dev toolchains
     if [[ "$INSTALL_RUST" == true ]] && command -v rustup >/dev/null 2>&1; then
@@ -179,14 +183,15 @@ else
     missing_items+=("dotfiles-clone")
 fi
 
-# Check remote is SSH (not HTTPS)
+# Check the remote matches this machine's git transport (SSH only with SSH_YUBIKEY/SSH_LOCAL)
 if [ -d "$DOTFILES_DIR/.git" ]; then
-    current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
-    if [ "$current_remote" = "$DOTFILES_SSH_REMOTE" ]; then
-        print_row "Remote URL" "${GREEN}✓ SSH${NC}" "$current_remote"
+    # Stored URL, not `remote get-url` — that applies url.*.insteadOf rewrites
+    current_remote=$(git -C "$DOTFILES_DIR" config --get remote.origin.url 2>/dev/null)
+    if [ "$current_remote" = "$DOTFILES_REMOTE" ]; then
+        print_row "Remote URL" "${GREEN}✓ $GIT_PROTOCOL${NC}" "$current_remote"
     else
-        print_row "Remote URL" "${YELLOW}~ Not SSH${NC}" "$current_remote"
-        missing_items+=("dotfiles-ssh-remote")
+        print_row "Remote URL" "${YELLOW}~ Not $GIT_PROTOCOL${NC}" "$current_remote"
+        missing_items+=("dotfiles-remote")
     fi
 fi
 
@@ -313,6 +318,8 @@ for pkg_dir in "$DOTFILES_DIR"/*/; do
         [[ "$(basename "$relative")" == settings.json ]] && continue
         # Skip mcp_config templates (deployed from template, not via stow)
         [[ "$(basename "$relative")" == *mcp_config* ]] && continue
+        # Skip gh config.yml (deployed from template, not via stow — checked under gh below)
+        [[ "$relative" == .config/gh/config.yml ]] && continue
         git -C "$DOTFILES_DIR" check-ignore -q "$file" 2>/dev/null && continue
         # Skip files under directories already folded by stow
         skip=false
@@ -472,7 +479,8 @@ else
 fi
 fi
 
-# --- SSH ---
+# --- SSH --- only where git runs over SSH; an HTTPS machine wants no key and skips the ssh package
+if [[ "$GIT_PROTOCOL" == ssh ]]; then
 print_header "SSH"
 
 if [ -s "$HOME/.ssh/id_ed25519" ]; then
@@ -525,6 +533,7 @@ fi
 check_perms ".ssh/ permissions" "$HOME/.ssh" "700" "ssh-dir-perms"
 check_perms "Private key permissions" "$HOME/.ssh/id_ed25519" "600" "ssh-key-perms"
 check_perms ".ssh/config permissions" "$HOME/.ssh/config" "644" "ssh-config-perms"
+fi
 
 # --- SSH Agent Relay (YubiKey) — WSL relays the Windows ssh-agent over a socket ---
 # Diagnostic only: any failure points at wsl_ssh_agent.sh, the idempotent fix.
@@ -654,14 +663,20 @@ if dpkg -s gh >/dev/null 2>&1; then
             print_row "gh auth" "${YELLOW}~ Not logged in${NC}" "needs a PAT (see fix below)"
             missing_items+=("gh-auth")
         fi
-        # git transport must stay on SSH (YubiKey-gated): with https, gh's credential helper would
-        # push using the API token, which has no hardware-presence check
+        # config.yml is a local copy of the template, never a stow link: gh writes it, and
+        # git_protocol is per machine
+        if [ -L "$HOME/.config/gh/config.yml" ]; then
+            print_row "gh config.yml" "${YELLOW}~ Is a symlink${NC}" "should be a local copy (setup.sh unfolds it)"
+            missing_items+=("gh-config")
+        fi
+        # Must match GIT_PROTOCOL: with SSH (YubiKey-gated) git must not fall back to https, where
+        # gh's credential helper would push using the API token with no hardware-presence check
         gh_proto=$(gh config get git_protocol 2>/dev/null)
-        if [ "$gh_proto" = "ssh" ]; then
-            print_row "gh git protocol" "${GREEN}✓ ssh${NC}" ""
+        if [ "$gh_proto" = "$GIT_PROTOCOL" ]; then
+            print_row "gh git protocol" "${GREEN}✓ $gh_proto${NC}" ""
         else
-            print_row "gh git protocol" "${YELLOW}~ ${gh_proto:-unset}${NC}" "want ssh (re-run setup.sh to re-stow gh/config.yml)"
-            missing_items+=("stow-gh-protocol")
+            print_row "gh git protocol" "${YELLOW}~ ${gh_proto:-unset}${NC}" "want $GIT_PROTOCOL (re-run setup.sh)"
+            missing_items+=("gh-config")
         fi
     fi
 else
@@ -881,7 +896,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-ssh-remote|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows|agy-mcp-config|agy-config-dir)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-remote|gh-config|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows|agy-mcp-config|agy-config-dir)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-10-29]
+
+### Changed
+
+- `setup.sh`, `validate_setup.sh`: git transport is SSH only with `SSH_YUBIKEY`/`SSH_LOCAL`, else HTTPS — drives dotfiles remote and gh `git_protocol`.
+- `gh/.config/gh/config.yml`: now a template deployed as a local copy (stow-ignored), unfolding the old stow symlink.
+- `setup.sh`, `validate_setup.sh`: skip apt/system steps with a warning when no `sudo` exists (rootless devbox containers).
+- `setup.sh`, `validate_setup.sh`: skip the `ssh` stow package and SSH checks on HTTPS-only machines.
+- `setup.sh`: global npm tools install only versions at least 7 days old, with pnpm's native-binary install script allowed.
+
 ## [2026-10-26]
 
 ### Added

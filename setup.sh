@@ -11,6 +11,12 @@ PREREQS=(git curl stow age unzip)
 APT_PACKAGES=(build-essential jq tmux)
 STOW_SKIP=(.git agents claude)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
+DOTFILES_HTTPS_REMOTE="https://github.com/perdrizat/dotfiles.git"
+# Can this run install system packages? Probe the capability, not the environment: a devbox
+# container ships no sudo (and NoNewPrivileges would defeat it anyway), while WSL and VMs have
+# one that asks for a password — so `sudo -n true` would be wrong. Without sudo every apt/system
+# step is skipped with a notice (the image provides those packages); everything else runs as usual.
+CAN_SUDO=false; command -v sudo >/dev/null 2>&1 && CAN_SUDO=true
 # jq helpers for Antigravity path rules (needs --arg home "$HOME"). agy documents only absolute
 # paths for read_file()/write_file() (no `~`, no globs) and silently ignores rules it can't match,
 # so the template stores them portably as `~/…`: `expand` makes them absolute in a deployed copy,
@@ -20,9 +26,15 @@ JQ_PATH_DEFS='def pr: ([capture("^(?<a>read_file|write_file)\\((?<p>.*)\\)$")][0
   def expand: pr as $m | if $m and ($m.p | startswith("~/")) then "\($m.a)(\($home)/\($m.p | ltrimstr("~/")))" else . end;'
 
 # Install the setup prerequisites if missing (apt update only in -update mode)
-_need_prereqs=false
-for _cmd in "${PREREQS[@]}"; do command -v "$_cmd" >/dev/null 2>&1 || { _need_prereqs=true; break; }; done
-$_need_prereqs && echo "Installing prerequisites: ${PREREQS[*]}" && sudo apt-get -qq update && sudo apt-get -qq install -y "${PREREQS[@]}"
+_missing_prereqs=()
+for _cmd in "${PREREQS[@]}"; do command -v "$_cmd" >/dev/null 2>&1 || _missing_prereqs+=("$_cmd"); done
+if [ ${#_missing_prereqs[@]} -gt 0 ]; then
+    if $CAN_SUDO; then
+        echo "Installing prerequisites: ${PREREQS[*]}" && sudo apt-get -qq update && sudo apt-get -qq install -y "${PREREQS[@]}"
+    else
+        echo "WARNING: no sudo — missing prerequisites not installed: ${_missing_prereqs[*]}"
+    fi
+fi
 
 # Clone the repo if we aren't already in it
 if [ ! -d "$DOTFILES_DIR" ]; then
@@ -85,10 +97,21 @@ source "$CONFIG_FILE"
 # (so the toggle is known) and before the return below (so validate_setup.sh sees it too).
 [[ "$INSTALL_ANTIGRAVITY" != true ]] && STOW_SKIP+=(gemini)
 
+# git transport: SSH only where a key exists (YubiKey relay or a decrypted local key), HTTPS
+# with gh's token credential everywhere else — devbox containers included. Drives the dotfiles
+# remote and gh's git_protocol; a machine without SSH also gets no ~/.ssh (ssh package skipped).
+if [[ "$SSH_YUBIKEY" == true || "$SSH_LOCAL" == true ]]; then
+    GIT_PROTOCOL=ssh; DOTFILES_REMOTE="$DOTFILES_SSH_REMOTE"
+else
+    GIT_PROTOCOL=https; DOTFILES_REMOTE="$DOTFILES_HTTPS_REMOTE"
+    STOW_SKIP+=(ssh)
+fi
+
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
 NEEDS_RESTART=false
+_no_sudo_skipped=()  # system installs skipped for lack of sudo, reported once at the end
 
 # Auto-upgrade on first-ever run: a freshly provisioned machine has never had an explicit
 # `apt upgrade`, so bring it fully up to date before installing anything else.
@@ -98,13 +121,13 @@ NEEDS_RESTART=false
 # would suppress this block on exactly the fresh boxes it exists for. Trailing `(space|$)`
 # keeps `unattended-upgrade` (the u-u binary, which only ships security updates) from
 # counting as a full upgrade.
-if ! grep -qE "^Commandline:.*[[:space:]](dist-|full-)?upgrade([[:space:]]|$)" /var/log/apt/history.log 2>/dev/null; then
+if $CAN_SUDO && ! grep -qE "^Commandline:.*[[:space:]](dist-|full-)?upgrade([[:space:]]|$)" /var/log/apt/history.log 2>/dev/null; then
     echo "No prior apt upgrade found — upgrading system packages..."
     sudo apt-get -qq update && sudo apt-get -qq upgrade -y
 fi
 
 # Disable Ubuntu Pro apt advertisements (keep the package, just silence it)
-if command -v pro >/dev/null 2>&1; then
+if $CAN_SUDO && command -v pro >/dev/null 2>&1; then
     sudo pro config set apt_news=false 2>/dev/null || true
     sudo systemctl mask apt-news.service esm-cache.service 2>/dev/null || true
 fi
@@ -185,6 +208,19 @@ done
 
 # Ensure ~/bin scripts are executable
 chmod +x "$HOME"/bin/*.sh 2>/dev/null || true
+
+# gh config: deployed as a local file, not stowed (gh/.stow-local-ignore) — git_protocol differs
+# per machine (GIT_PROTOCOL above) and gh rewrites the file itself, so a stowed link would write
+# machine state into the repo. Unfold a link left by the old stowed layout, seed from the template,
+# then pin git_protocol. Rewritten in memory and written back via redirect (keeps the inode).
+GH_CONFIG="$HOME/.config/gh/config.yml"
+[ -L "$GH_CONFIG" ] && rm -f "$GH_CONFIG" && echo "Unfolded ~/.config/gh/config.yml (was a stow symlink into the repo)"
+[ -f "$GH_CONFIG" ] || cp "$DOTFILES_DIR/gh/.config/gh/config.yml" "$GH_CONFIG"
+if ! grep -qx "git_protocol: $GIT_PROTOCOL" "$GH_CONFIG"; then
+    _gh_conf=$(grep -v '^git_protocol:' "$GH_CONFIG")
+    printf '%s\ngit_protocol: %s\n' "$_gh_conf" "$GIT_PROTOCOL" > "$GH_CONFIG"
+    echo "Set gh git_protocol: $GIT_PROTOCOL"
+fi
 
 # Settings merges: every sync below is "merge src into dest via a jq program". The helper
 # computes the merge, then writes ONLY when the result differs from dest as JSON (jq ==
@@ -302,11 +338,12 @@ for _perm in 700:~/.ssh 600:~/.ssh/id_ed25519 644:~/.ssh/config; do
 done
 $_fixed_perms && echo "Fixed SSH permissions"
 
-# Switch dotfiles remote from HTTPS to SSH now that keys are in place
-current_remote=$(git -C "$DOTFILES_DIR" remote get-url origin 2>/dev/null)
-if [ "$current_remote" != "$DOTFILES_SSH_REMOTE" ]; then
-    echo "Switching dotfiles remote to SSH..."
-    git -C "$DOTFILES_DIR" remote set-url origin "$DOTFILES_SSH_REMOTE"
+# Point the dotfiles remote at this machine's git transport (SSH or HTTPS, see GIT_PROTOCOL).
+# Read the stored URL: `remote get-url` applies url.*.insteadOf rewrites and would hide it.
+current_remote=$(git -C "$DOTFILES_DIR" config --get remote.origin.url 2>/dev/null)
+if [ "$current_remote" != "$DOTFILES_REMOTE" ]; then
+    echo "Switching dotfiles remote to $GIT_PROTOCOL..."
+    git -C "$DOTFILES_DIR" remote set-url origin "$DOTFILES_REMOTE"
 fi
 
 # NOTE: a wsl.conf [boot] command that pinned a static IPv6 address used to live here
@@ -329,10 +366,25 @@ if [ -n "$MORE_APT_PACKAGES" ]; then
     apt_install+=("${more_pkgs[@]}")
 fi
 
-dpkg -s "${apt_install[@]}" >/dev/null 2>&1 || { echo "Installing APT packages: ${apt_install[*]}" && sudo apt-get -qq install -y "${apt_install[@]}"; }
+if ! dpkg -s "${apt_install[@]}" >/dev/null 2>&1; then
+    if $CAN_SUDO; then
+        echo "Installing APT packages: ${apt_install[*]}" && sudo apt-get -qq install -y "${apt_install[@]}"
+    else
+        for _pkg in "${apt_install[@]}"; do dpkg -s "$_pkg" >/dev/null 2>&1 || _no_sudo_skipped+=("$_pkg"); done
+    fi
+fi
+
+# Apt-repo tools below: without sudo, note what's missing instead of installing it
+if ! $CAN_SUDO; then
+    command -v glow >/dev/null 2>&1 || _no_sudo_skipped+=(glow)
+    command -v gh >/dev/null 2>&1 || _no_sudo_skipped+=(gh)
+    [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]] && _no_sudo_skipped+=(firefox)
+    [[ "$INSTALL_CHROME" == true ]] && _no_sudo_skipped+=(google-chrome-stable)
+    [[ "$INSTALL_DOCKER" == true ]] && _no_sudo_skipped+=("docker group")
+fi
 
 # --- Glow (markdown pager from Charm apt repo) ---
-if ! command -v glow >/dev/null 2>&1; then
+if $CAN_SUDO && ! command -v glow >/dev/null 2>&1; then
     echo "Setting up Charm apt repo for glow..."
     sudo mkdir -p /etc/apt/keyrings
     [ -f /etc/apt/keyrings/charm.gpg ] || curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg
@@ -341,7 +393,7 @@ if ! command -v glow >/dev/null 2>&1; then
 fi
 
 # --- GitHub CLI (from GitHub apt repo) ---
-if ! command -v gh >/dev/null 2>&1; then
+if $CAN_SUDO && ! command -v gh >/dev/null 2>&1; then
     echo "Setting up GitHub apt repo for gh..."
     sudo mkdir -p -m 755 /etc/apt/keyrings
     [ -f /etc/apt/keyrings/githubcli-archive-keyring.gpg ] || curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
@@ -356,7 +408,7 @@ fi
 # `1:1snap1-0ubuntu5`) whose sole job is to pull in the snap. `dpkg -s firefox`
 # succeeds for that stub, so a naive presence check is fooled into leaving the
 # snap in place. Treat any snap-versioned build as "needs the Mozilla deb".
-if [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
+if $CAN_SUDO && [[ "$INSTALL_FF" == true || "$INSTALL_FF_ESR" == true ]]; then
     # true when the package is absent OR installed only as Ubuntu's snap stub
     ff_need() { ! dpkg -s "$1" >/dev/null 2>&1 || dpkg-query -W -f='${Version}' "$1" 2>/dev/null | grep -q snap; }
     # Explanatory header for the negative pin, shared by the create and repair paths below.
@@ -395,7 +447,7 @@ fi
 # --- Google Chrome (Google's apt repo) ---
 # Prefer the apt repo over a one-off `.deb`: Chrome then updates via `apt upgrade` like
 # every other tool here. amd64-only — Google publishes no arm64 Chrome for Linux.
-if [[ "$INSTALL_CHROME" == true ]] && ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
+if $CAN_SUDO && [[ "$INSTALL_CHROME" == true ]] && ! dpkg -s google-chrome-stable >/dev/null 2>&1; then
     echo "Setting up Google apt repo for Chrome..."
     sudo install -d -m 0755 /etc/apt/keyrings
     [ -f /etc/apt/keyrings/google-chrome.gpg ] || curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | sudo gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg
@@ -404,7 +456,7 @@ if [[ "$INSTALL_CHROME" == true ]] && ! dpkg -s google-chrome-stable >/dev/null 
 fi
 
 # Add current user to docker group (requires logout/login to take effect)
-if [[ "$INSTALL_DOCKER" == true ]] && ! id -nG "$USER" | grep -qw docker; then
+if $CAN_SUDO && [[ "$INSTALL_DOCKER" == true ]] && ! id -nG "$USER" | grep -qw docker; then
     sudo usermod -aG docker "$USER"
     NEEDS_RESTART=true
 fi
@@ -438,7 +490,10 @@ if [[ "$INSTALL_NODE" == true ]]; then
     command -v pnpm >/dev/null 2>&1 || node_globals_missing+=(pnpm)
     if [ ${#node_globals_missing[@]} -gt 0 ]; then
         echo "Installing global npm tools: ${node_globals_missing[*]}"
-        npm install -g "${node_globals_missing[@]}"
+        # --before: only versions published at least 7 days ago (supply-chain cooldown).
+        # --allow-scripts=pnpm: its install script links the native binary; without it every
+        # pnpm call runs through Node.js and warns on each interactive use.
+        npm install -g --before="$(date -d '7 days ago' +%F)" --allow-scripts=pnpm "${node_globals_missing[@]}"
     fi
     mkdir -p ~/.local/share/bash-completion/completions
     fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
@@ -572,6 +627,9 @@ for _rc in ~/.bashrc ~/.profile; do
 done
 
 echo "Setup complete!"
+if [ ${#_no_sudo_skipped[@]} -gt 0 ]; then
+    echo "WARNING: no sudo — not installed (bake into the image instead): ${_no_sudo_skipped[*]}"
+fi
 if [[ "$NEEDS_RESTART" == true ]]; then
     echo "Restart your shell or run"
     echo '. ~/.bashrc'
