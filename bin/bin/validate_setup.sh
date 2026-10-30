@@ -582,27 +582,28 @@ if grep -qi microsoft /proc/version 2>/dev/null; then
 fi
 
 # --- Default Repo (tmux window 1) ---
-# tmux's session-created hook opens window 1 in ~/$WSL_DISTRO_NAME, the machine's default
-# repo. Flag a missing/invalid path so the layout doesn't silently fall back to the launch
-# dir. setup.sh can't create it (it doesn't know which repo you want), so the fix is manual.
-if [ -n "${WSL_DISTRO_NAME:-}" ]; then
-    print_header "Default Repo"
-    default_repo="$HOME/$WSL_DISTRO_NAME"
-    if [ -d "$default_repo" ]; then
-        # -d follows symlinks, so a symlink-to-directory passes too
-        if [ -L "$default_repo" ]; then
-            print_row "~/$WSL_DISTRO_NAME" "${GREEN}✓ Present${NC}" "→ $(readlink "$default_repo")"
-        else
-            print_row "~/$WSL_DISTRO_NAME" "${GREEN}✓ Present${NC}" "directory"
-        fi
-    elif [ -e "$default_repo" ] || [ -L "$default_repo" ]; then
-        # Exists but isn't a directory: a regular file, or a dangling symlink
-        print_row "~/$WSL_DISTRO_NAME" "${RED}x Not a directory${NC}" "want a dir or symlink-to-dir"
-        missing_items+=("default-repo")
+# tmux's session-created hook opens window 1 in ~/$MACHINE_NAME, the machine's default repo.
+# Derived here as in .bash_extra (WSL distro name, else short hostname): this may run outside
+# an interactive shell (e.g. devbox-check). Flag a missing/invalid path so the layout doesn't
+# silently fall back to the launch dir. setup.sh can't create it (it doesn't know which repo
+# you want), so the fix is manual.
+MACHINE_NAME="${WSL_DISTRO_NAME:-${HOSTNAME%%.*}}"
+print_header "Default Repo"
+default_repo="$HOME/$MACHINE_NAME"
+if [ -d "$default_repo" ]; then
+    # -d follows symlinks, so a symlink-to-directory passes too
+    if [ -L "$default_repo" ]; then
+        print_row "~/$MACHINE_NAME" "${GREEN}✓ Present${NC}" "→ $(readlink "$default_repo")"
     else
-        print_row "~/$WSL_DISTRO_NAME" "${YELLOW}~ Missing${NC}" "tmux window 1 opens here"
-        missing_items+=("default-repo")
+        print_row "~/$MACHINE_NAME" "${GREEN}✓ Present${NC}" "directory"
     fi
+elif [ -e "$default_repo" ] || [ -L "$default_repo" ]; then
+    # Exists but isn't a directory: a regular file, or a dangling symlink
+    print_row "~/$MACHINE_NAME" "${RED}x Not a directory${NC}" "want a dir or symlink-to-dir"
+    missing_items+=("default-repo")
+else
+    print_row "~/$MACHINE_NAME" "${YELLOW}~ Missing${NC}" "tmux window 1 opens here"
+    missing_items+=("default-repo")
 fi
 
 # --- Git ---
@@ -950,7 +951,7 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
             ;;
         default-repo)
             printf "\n  ${CYAN}# Create the default repo dir tmux window 1 opens in (dir or symlink):${NC}\n"
-            echo "  mkdir -p ~/$WSL_DISTRO_NAME   # or: ln -s /path/to/your/repo ~/$WSL_DISTRO_NAME"
+            echo "  mkdir -p ~/$MACHINE_NAME   # or: ln -s /path/to/your/repo ~/$MACHINE_NAME"
             ;;
         gh-auth)
             # One pasteable line: `--with-token` reads the PAT from stdin (paste, Enter, Ctrl-D),

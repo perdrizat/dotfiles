@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-10-30]
+
+### Changed
+
+- `.bash_extra`: append `~/devbox/bin` to `PATH` and source `~/devbox/shell.bash` when they exist (devbox VM admin scripts, per-container aliases).
+- tmux window 1 and `validate_setup.sh` default-repo check use `~/$MACHINE_NAME` (WSL distro name, else short hostname), so VMs and devbox containers get it too.
+
 ## [2026-10-29]
 
 ### Changed

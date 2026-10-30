@@ -5,6 +5,14 @@ for dir in ~/.local/bin ~/bin; do
         *) PATH="$dir:$PATH" ;;
     esac
 done
+
+# devbox admin scripts (devbox, devbox-build, …) — only on the VM host that has the repo
+if [ -d ~/devbox/bin ]; then
+    case ":$PATH:" in
+        *":$HOME/devbox/bin:"*) ;;
+        *) PATH="$PATH:$HOME/devbox/bin" ;;
+    esac
+fi
 export PATH
 
 # Collapse duplicate PATH entries, keeping the first occurrence so precedence is
@@ -63,8 +71,16 @@ if [ -n "${WSL_DISTRO_NAME:-}" ] && [ -f "$HOME/.config/dotfiles/ssh_agent.env" 
     fi
 fi
 
+# Machine name: the WSL distro name, else the short hostname (VMs, devbox containers). tmux
+# opens window 1 in ~/$MACHINE_NAME, the machine's default repo. $HOSTNAME, not `hostname`:
+# no fork, and slim container images may lack the binary.
+export MACHINE_NAME="${WSL_DISTRO_NAME:-${HOSTNAME%%.*}}"
+
 # Custom prompt for WSL
 if [ -n "$WSL_DISTRO_NAME" ]; then
     # Default Maol prompt style, but with WSL name
     export PS1="\[\e]0;\u@$WSL_DISTRO_NAME: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@$WSL_DISTRO_NAME\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
 fi
+
+# devbox host: per-container aliases and `devbox` completion, owned by the devbox repo
+[ -f ~/devbox/shell.bash ] && . ~/devbox/shell.bash
