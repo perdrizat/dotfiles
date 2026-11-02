@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-11-02]
+
+### Fixed
+
+- `bin/bin/agy_status.sh`, `bin/bin/claude_status.sh`: replace `bc` arithmetic with `jq` so context size and quota percentages don't render as `0%` on containers without `bc`.
+
 ## [2026-10-30]
 
 ### Changed

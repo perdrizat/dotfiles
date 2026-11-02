@@ -24,13 +24,13 @@ CONTEXT_RAW=$(echo "$INPUT_JSON" | jq -r '.context_window.context_window_size //
 CONTEXT_USED_PCT=$(echo "$INPUT_JSON" | jq -r '.context_window.used_percentage // 0')
 
 if [ "$CONTEXT_RAW" -ge 1000000 ]; then
-    CONTEXT_DISPLAY=$(printf "%.1fm" "$(echo "scale=1; $CONTEXT_RAW / 1000000" | bc -l)")
+    CONTEXT_DISPLAY=$(printf "%.1fm" "$(jq -n "$CONTEXT_RAW / 1000000")")
 else
     CONTEXT_DISPLAY="$((CONTEXT_RAW / 1000))k"
 fi
 
 # Derive used tokens from context percentage
-used_ctx_tokens=$(echo "($CONTEXT_RAW * $CONTEXT_USED_PCT) / 100" | bc -l | xargs printf "%.0f")
+used_ctx_tokens=$(jq -n "($CONTEXT_RAW * $CONTEXT_USED_PCT) / 100 | round")
 used_ctx_k=$(( used_ctx_tokens / 1000 ))
 
 EFFORT=$(jq -r '.effortLevel // "default"' "$SETTINGS_FILE" 2>/dev/null)
@@ -140,10 +140,8 @@ if (( have_usage )); then
 
     extra_enabled=$(echo "$data" | jq -r '.extra_usage.is_enabled // false')
     if [ "$extra_enabled" = "true" ]; then
-        used_cents=$(echo "$data" | jq -r '.extra_usage.used_credits // 0')
-        limit_cents=$(echo "$data" | jq -r '.extra_usage.monthly_limit // 0')
-        used_dollars=$(echo "scale=2; $used_cents / 100" | bc -l)
-        limit_dollars=$(echo "$limit_cents / 100" | bc)
+        used_dollars=$(printf "%.2f" "$(echo "$data" | jq -r '(.extra_usage.used_credits // 0) / 100')")
+        limit_dollars=$(echo "$data" | jq -r '(.extra_usage.monthly_limit // 0) / 100 | floor')
         extra_display=$(printf "\$%s/\$%s" "$used_dollars" "$limit_dollars")
     else
         extra_display="disabled"

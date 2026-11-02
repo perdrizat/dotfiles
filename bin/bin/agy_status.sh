@@ -24,7 +24,7 @@ fi
 
 # Context formatting
 if [ "$CONTEXT_RAW" -ge 1000000 ]; then
-    CONTEXT_DISPLAY=$(printf "%.1fm" "$(echo "scale=1; $CONTEXT_RAW / 1000000" | bc -l)")
+    CONTEXT_DISPLAY=$(printf "%.1fm" "$(jq -n "$CONTEXT_RAW / 1000000")")
 elif [ "$CONTEXT_RAW" -gt 0 ]; then
     CONTEXT_DISPLAY="$((CONTEXT_RAW / 1000))k"
 else
@@ -33,7 +33,7 @@ fi
 
 # Calculate used tokens
 if [ "$CONTEXT_RAW" -gt 0 ]; then
-    used_ctx_tokens=$(echo "($CONTEXT_RAW * $CONTEXT_USED_PCT) / 100" | bc -l | xargs printf "%.0f")
+    used_ctx_tokens=$(jq -n "($CONTEXT_RAW * $CONTEXT_USED_PCT) / 100 | round")
     used_ctx_k=$(( used_ctx_tokens / 1000 ))
 else
     used_ctx_k="0"
@@ -60,41 +60,27 @@ format_reset() {
     (( ts > 0 )) && date -d @"$ts" +"$fmt" 2>/dev/null || echo "?"
 }
 
-parse_bucket_pct() {
-    local frac=$1
-    if [[ -n "$frac" && "$frac" != "null" ]]; then
-        echo "$frac * 100" | bc -l | xargs printf "%.0f"
-    else
-        echo "?"
-    fi
-}
-
-read -r argon_7d_f argon_7d_t gem_5h_f gem_5h_t gem_7d_f gem_7d_t tp_5h_f tp_5h_t tp_7d_f tp_7d_t < <(
-    echo "$INPUT_JSON" | jq -r '[
-        (.quota["gemini-argon-wtu-weekly"].remaining_fraction // "null"),
-        (.quota["gemini-argon-wtu-weekly"].reset_time // "null"),
-        (.quota["gemini-5h"].remaining_fraction // "null"),
-        (.quota["gemini-5h"].reset_time // "null"),
-        (.quota["gemini-weekly"].remaining_fraction // "null"),
-        (.quota["gemini-weekly"].reset_time // "null"),
-        (.quota["3p-5h"].remaining_fraction // "null"),
-        (.quota["3p-5h"].reset_time // "null"),
-        (.quota["3p-weekly"].remaining_fraction // "null"),
-        (.quota["3p-weekly"].reset_time // "null")
-    ] | @tsv' 2>/dev/null
+read -r ARGON_7D_PCT argon_7d_t GEM_5H_PCT gem_5h_t GEM_7D_PCT gem_7d_t TP_5H_PCT tp_5h_t TP_7D_PCT tp_7d_t < <(
+    echo "$INPUT_JSON" | jq -r '
+        def pct: if . != null then (. * 100 | round | tostring) else "?" end;
+        [
+            (.quota["gemini-argon-wtu-weekly"].remaining_fraction | pct),
+            (.quota["gemini-argon-wtu-weekly"].reset_time // "null"),
+            (.quota["gemini-5h"].remaining_fraction | pct),
+            (.quota["gemini-5h"].reset_time // "null"),
+            (.quota["gemini-weekly"].remaining_fraction | pct),
+            (.quota["gemini-weekly"].reset_time // "null"),
+            (.quota["3p-5h"].remaining_fraction | pct),
+            (.quota["3p-5h"].reset_time // "null"),
+            (.quota["3p-weekly"].remaining_fraction | pct),
+            (.quota["3p-weekly"].reset_time // "null")
+        ] | @tsv' 2>/dev/null
 )
 
-ARGON_7D_PCT=$(parse_bucket_pct "$argon_7d_f")
 ARGON_7D_RESET=$(format_reset "$argon_7d_t" "%m/%d %H:%M")
-
-GEM_5H_PCT=$(parse_bucket_pct "$gem_5h_f")
 GEM_5H_RESET=$(format_reset "$gem_5h_t" "%H:%M")
-GEM_7D_PCT=$(parse_bucket_pct "$gem_7d_f")
 GEM_7D_RESET=$(format_reset "$gem_7d_t" "%m/%d %H:%M")
-
-TP_5H_PCT=$(parse_bucket_pct "$tp_5h_f")
 TP_5H_RESET=$(format_reset "$tp_5h_t" "%H:%M")
-TP_7D_PCT=$(parse_bucket_pct "$tp_7d_f")
 TP_7D_RESET=$(format_reset "$tp_7d_t" "%m/%d %H:%M")
 
 # --- 4. COLORS ---
