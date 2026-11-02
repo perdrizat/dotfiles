@@ -152,7 +152,8 @@
       "mcp(linear/list_issue_statuses)",
       "mcp(linear/list_issues)",
       "mcp(linear/list_projects)",
-      "mcp(linear/save_issue)"
+      "mcp(linear/save_issue)",
+      "read_file(~/dotfiles/gemini/.gemini/config/skills)"
     ],
     "ask": [
       "command(gh auth)"

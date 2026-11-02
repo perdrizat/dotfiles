@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [2026-11-02]
 
+### Changed
+
+- `gemini/.gemini/antigravity-cli/settings.json`, `setup.sh`, `bin/bin/validate_setup.sh`: allowlist `read_file(~/dotfiles/gemini/.gemini/config/skills)` so symlinked skills never prompt outside `~/dotfiles`, and forward-merge/require `allowNonWorkspaceAccess`.
+- `setup.sh`, `bin/bin/validate_setup.sh`: set Antigravity's local `enableTerminalSandbox` to `$CAN_SUDO` (`false` in rootless containers without `sudo`, `true` elsewhere) without feeding back into the repo template.
+
 ### Fixed
 
 - `bin/bin/agy_status.sh`, `bin/bin/claude_status.sh`: replace `bc` arithmetic with `jq` so context size and quota percentages don't render as `0%` on containers without `bc`.

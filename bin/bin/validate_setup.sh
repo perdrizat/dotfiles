@@ -422,7 +422,7 @@ elif [ -L "$AGY_SETTINGS" ]; then
     print_row "agy settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("agy-settings-symlink")
 elif [ -f "$AGY_SETTINGS" ]; then
-    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox" "agentMode")
+    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox" "agentMode" "allowNonWorkspaceAccess")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do
@@ -436,6 +436,12 @@ elif [ -f "$AGY_SETTINGS" ]; then
         print_row "agy settings.json" "${GREEN}✓ Complete${NC}" "all required keys present"
     else
         print_row "agy settings.json" "${YELLOW}~ Missing keys${NC}" "${missing_keys[*]}"
+        missing_items+=("agy-settings")
+    fi
+
+    # Terminal sandbox must match CAN_SUDO (off in rootless containers where bwrap cannot create namespaces)
+    if ! jq -e --argjson want "$CAN_SUDO" '.enableTerminalSandbox == $want' "$AGY_SETTINGS" >/dev/null 2>&1; then
+        print_row "agy settings.json" "${YELLOW}~ enableTerminalSandbox${NC}" "want $CAN_SUDO (re-run setup.sh)"
         missing_items+=("agy-settings")
     fi
 

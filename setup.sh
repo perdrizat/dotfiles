@@ -533,19 +533,24 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
         # PATH may lack ~/.local/bin in a curl-piped run — check the binary directly too
         command -v agy >/dev/null 2>&1 || [ -x "$AGY_BIN" ] || echo "WARNING: Antigravity CLI install failed — re-run setup.sh or install manually."
     fi
-    # Deploy/merge agy settings
+    # Deploy/merge agy settings. Terminal sandbox is enabled only when sudo exists: rootless
+    # devbox containers (CAN_SUDO=false) already isolate the environment and cannot create the
+    # nested user/mount namespaces bwrap needs. Reverse-sync below only touches .permissions,
+    # so the local false override never feeds back into the repo template.
     mkdir -p ~/.gemini/antigravity-cli
     AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
     AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
     if [[ -f "$AGY_SETTINGS" ]]; then
-        # Allows union + statusLine/hooks/title/enableTerminalSandbox/agentMode parity, but only for keys the template
-        # actually has (a missing template key must never inject null or erase local values)
+        # Allows union + statusLine/hooks/title/agentMode/allowNonWorkspaceAccess parity (only for keys the template
+        # actually has, so a missing template key never injects null or erases local values) + machine enableTerminalSandbox
         merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
-            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, enableTerminalSandbox, agentMode} | with_entries(select(.value != null)))" \
+            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, agentMode, allowNonWorkspaceAccess} | with_entries(select(.value != null))) * {enableTerminalSandbox: $CAN_SUDO}" \
             "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
         # Not a plain cp: the template's portable `~/` path rules must be made absolute for agy
-        jq --arg home "$HOME" "$JQ_PATH_DEFS .permissions |= with_entries(.value |= map(expand))" "$AGY_TEMPLATE" > "$AGY_SETTINGS"
+        jq --arg home "$HOME" --argjson sandbox "$CAN_SUDO" \
+            "$JQ_PATH_DEFS (.permissions |= with_entries(.value |= map(expand))) | .enableTerminalSandbox = \$sandbox" \
+            "$AGY_TEMPLATE" > "$AGY_SETTINGS"
         echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
     fi
     # Deploy/merge agy MCP server config from template (preserves local auth headers / custom servers)
