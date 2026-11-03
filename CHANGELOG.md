@@ -17,6 +17,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `bin/bin/agy_status.sh`, `bin/bin/claude_status.sh`: replace `bc` arithmetic with `jq` so context size and quota percentages don't render as `0%` on containers without `bc`.
 
+## [2026-11-03]
+
+### Added
+
+- Global rules: ecosystem-agnostic procedure for vulnerable dependencies inside the 7-day cooldown, and a weekly scheduled CI audit.
+- `pre_commit_check.sh`: prints the project's check command (`pnpm check` / `make check`, else "mirror CI").
+
+### Changed
+
+- Global rules: 7-day release cooldown stated as an ecosystem-independent principle (pnpm as example).
+- Global rules: run the project's single check command or mirror CI (incl. format check) instead of a fixed build/lint/test/audit list; audit at CI's level, not bare `pnpm audit`.
+- `pre_commit_check.sh`: README/CONTRIBUTING shown as informational, only CHANGELOG warns when stale.
+>>>>>>> 74f5a15 (feat(llm): project-defined checks, dependency cooldown and audit rules)
+
 ## [2026-10-30]
 
 ### Changed

@@ -58,9 +58,22 @@ for doc in CHANGELOG.md CONTRIBUTING.md README.md; do
     if [ -f "$doc" ] || [ -L "$doc" ]; then
         if echo "$changed_files" | grep -qxF "$doc"; then
             echo "  $doc — updated"
-        else
+        elif [ "$doc" = "CHANGELOG.md" ]; then
             echo "  $doc — not updated (may be stale)"
+        else
+            echo "  $doc — unchanged (update only if user-facing behaviour/workflow changed)"
         fi
     fi
 done
+echo ""
+
+# --- Project checks (not run here; the project owns them) ---
+echo "=== Project check command ==="
+if [ -f package.json ] && grep -q '"check"[[:space:]]*:' package.json; then
+    echo "  Run: pnpm check"
+elif [ -f Makefile ] && grep -q '^check:' Makefile; then
+    echo "  Run: make check"
+else
+    echo "  None declared — mirror .github/workflows/ci.yml step for step"
+fi
 echo ""
