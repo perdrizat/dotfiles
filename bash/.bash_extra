@@ -74,13 +74,16 @@ fi
 # Machine name: the WSL distro name, else the short hostname (VMs, devbox containers). tmux
 # opens window 1 in ~/$MACHINE_NAME, the machine's default repo. $HOSTNAME, not `hostname`:
 # no fork, and slim container images may lack the binary.
+export USER="${USER:-$(id -un)}"
 export MACHINE_NAME="${WSL_DISTRO_NAME:-${HOSTNAME%%.*}}"
 
-# Custom prompt for WSL
-if [ -n "$WSL_DISTRO_NAME" ]; then
-    # Default Maol prompt style, but with WSL name
-    export PS1="\[\e]0;\u@$WSL_DISTRO_NAME: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@$WSL_DISTRO_NAME\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
-fi
+# Custom prompt and terminal title with MACHINE_NAME (WSL distro name, VM or container name).
+# Also emit the OSC 0 title immediately on interactive shells attached to a terminal:
+# `devbox sh` runs `bash -lic 'exec tmux ...'`, which never renders PS1 before exec'ing tmux.
+export PS1="\[\e]0;\u@$MACHINE_NAME: \w\a\]${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@$MACHINE_NAME\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ "
+case $- in
+    *i*) [ -t 1 ] && printf '\e]0;%s@%s: %s\a' "$USER" "$MACHINE_NAME" "${PWD/#$HOME/\~}" ;;
+esac
 
 # devbox host: per-container aliases and `devbox` completion, owned by the devbox repo
 [ -f ~/devbox/shell.bash ] && . ~/devbox/shell.bash
