@@ -17,6 +17,9 @@ DOTFILES_HTTPS_REMOTE="https://github.com/perdrizat/dotfiles.git"
 # one that asks for a password — so `sudo -n true` would be wrong. Without sudo every apt/system
 # step is skipped with a notice (the image provides those packages); everything else runs as usual.
 CAN_SUDO=false; command -v sudo >/dev/null 2>&1 && CAN_SUDO=true
+# In rootless devbox containers (CAN_SUDO=false), the container itself is the OS sandbox and
+# nested namespaces fail on masked /proc: disable agy's terminal sandbox and auto-approve tools.
+AGY_TOOL_PERMISSION="request-review"; $CAN_SUDO || AGY_TOOL_PERMISSION="always-proceed"
 # jq helpers for Antigravity path rules (needs --arg home "$HOME"). agy documents only absolute
 # paths for read_file()/write_file() (no `~`, no globs) and silently ignores rules it can't match,
 # so the template stores them portably as `~/…`: `expand` makes them absolute in a deployed copy,
@@ -533,23 +536,23 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
         # PATH may lack ~/.local/bin in a curl-piped run — check the binary directly too
         command -v agy >/dev/null 2>&1 || [ -x "$AGY_BIN" ] || echo "WARNING: Antigravity CLI install failed — re-run setup.sh or install manually."
     fi
-    # Deploy/merge agy settings. Terminal sandbox is enabled only when sudo exists: rootless
-    # devbox containers (CAN_SUDO=false) already isolate the environment and cannot create the
-    # nested user/mount namespaces bwrap needs. Reverse-sync below only touches .permissions,
-    # so the local false override never feeds back into the repo template.
+    # Deploy/merge agy settings. In rootless devbox containers (CAN_SUDO=false) the container
+    # itself is the sandbox and nested user/mount namespaces fail on masked /proc, so disable
+    # enableTerminalSandbox and set toolPermission to always-proceed there. Reverse-sync below
+    # only touches .permissions, so local overrides never feed back into the repo template.
     mkdir -p ~/.gemini/antigravity-cli
     AGY_SETTINGS="$HOME/.gemini/antigravity-cli/settings.json"
     AGY_TEMPLATE="$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"
     if [[ -f "$AGY_SETTINGS" ]]; then
         # Allows union + statusLine/hooks/title/agentMode/allowNonWorkspaceAccess parity (only for keys the template
-        # actually has, so a missing template key never injects null or erases local values) + machine enableTerminalSandbox
+        # actually has, so a missing template key never injects null or erases local values) + machine sandbox/toolPermission
         merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
-            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, agentMode, allowNonWorkspaceAccess} | with_entries(select(.value != null))) * {enableTerminalSandbox: $CAN_SUDO}" \
+            "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, agentMode, allowNonWorkspaceAccess} | with_entries(select(.value != null))) * {enableTerminalSandbox: $CAN_SUDO, toolPermission: \"$AGY_TOOL_PERMISSION\"}" \
             "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
     else
         # Not a plain cp: the template's portable `~/` path rules must be made absolute for agy
-        jq --arg home "$HOME" --argjson sandbox "$CAN_SUDO" \
-            "$JQ_PATH_DEFS (.permissions |= with_entries(.value |= map(expand))) | .enableTerminalSandbox = \$sandbox" \
+        jq --arg home "$HOME" --argjson sandbox "$CAN_SUDO" --arg tp "$AGY_TOOL_PERMISSION" \
+            "$JQ_PATH_DEFS (.permissions |= with_entries(.value |= map(expand))) | .enableTerminalSandbox = \$sandbox | .toolPermission = \$tp" \
             "$AGY_TEMPLATE" > "$AGY_SETTINGS"
         echo "Deployed settings.json template to ~/.gemini/antigravity-cli/settings.json"
     fi

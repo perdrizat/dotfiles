@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-11-11]
+
+### Changed
+
+- `agents/AGENTS.md`: prepare-for-commit workflow checks for potential merge conflicts against upstream tracking branch before commit; allowlist `git fetch`.
+- `claude/.claude/settings.json`: allowlist `git fetch` in permissions for parity with Antigravity.
+- `gemini/.gemini/antigravity-cli/settings.json`, `setup.sh`, `bin/bin/validate_setup.sh`: set Antigravity `toolPermission` to `always-proceed` in rootless devbox containers (`CAN_SUDO=false`, where the container itself is the sandbox) and `request-review` elsewhere, and validate `toolPermission` and `agentMode` (`accept-edits`).
+
 ## [2026-11-05]
 
 ### Fixed

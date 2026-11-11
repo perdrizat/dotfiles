@@ -180,6 +180,7 @@
     "command": "~/bin/agy_title.sh",
     "enabled": true
   },
+  "toolPermission": "request-review",
   "hooks": {
     "Stop": [
       {

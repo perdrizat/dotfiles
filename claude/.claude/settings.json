@@ -19,6 +19,7 @@
       "Bash(free:*)",
       "Bash(gh:*)",
       "Bash(git blame:*)",
+      "Bash(git fetch:*)",
       "Bash(git branch --contains:*)",
       "Bash(git branch --list:*)",
       "Bash(git branch --merged:*)",

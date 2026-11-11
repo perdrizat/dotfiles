@@ -422,7 +422,7 @@ elif [ -L "$AGY_SETTINGS" ]; then
     print_row "agy settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
     missing_items+=("agy-settings-symlink")
 elif [ -f "$AGY_SETTINGS" ]; then
-    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox" "agentMode" "allowNonWorkspaceAccess")
+    required_keys=("permissions" "statusLine" "hooks" "title" "enableTerminalSandbox" "toolPermission" "agentMode" "allowNonWorkspaceAccess")
     missing_keys=()
 
     for key in "${required_keys[@]}"; do
@@ -439,9 +439,17 @@ elif [ -f "$AGY_SETTINGS" ]; then
         missing_items+=("agy-settings")
     fi
 
-    # Terminal sandbox must match CAN_SUDO (off in rootless containers where bwrap cannot create namespaces)
+    # Terminal sandbox and toolPermission must match CAN_SUDO (containers use the outer container as the sandbox)
     if ! jq -e --argjson want "$CAN_SUDO" '.enableTerminalSandbox == $want' "$AGY_SETTINGS" >/dev/null 2>&1; then
         print_row "agy settings.json" "${YELLOW}~ enableTerminalSandbox${NC}" "want $CAN_SUDO (re-run setup.sh)"
+        missing_items+=("agy-settings")
+    fi
+    if ! jq -e --arg want "$AGY_TOOL_PERMISSION" '.toolPermission == $want' "$AGY_SETTINGS" >/dev/null 2>&1; then
+        print_row "agy settings.json" "${YELLOW}~ toolPermission${NC}" "want $AGY_TOOL_PERMISSION (re-run setup.sh)"
+        missing_items+=("agy-settings")
+    fi
+    if ! jq -e '.agentMode == "accept-edits"' "$AGY_SETTINGS" >/dev/null 2>&1; then
+        print_row "agy settings.json" "${YELLOW}~ agentMode${NC}" "want accept-edits (re-run setup.sh)"
         missing_items+=("agy-settings")
     fi
 
