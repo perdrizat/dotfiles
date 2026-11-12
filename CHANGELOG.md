@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-11-12]
+
+### Changed
+
+- `gemini/.gemini/antigravity-cli/settings.json`: consolidate `pnpm test:*` and `pnpm chrome:smoke:*` command permissions using `regex:` patterns.
+
 ## [2026-11-11]
 
 ### Changed
