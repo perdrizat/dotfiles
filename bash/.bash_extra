@@ -47,6 +47,10 @@ else
 fi
 export VISUAL="$EDITOR"
 
+# Pi's local Linux clipboard may not reach the host clipboard under WSL/tmux. Force its
+# OSC 52 fallback; tmux's set-clipboard option forwards it to the outer terminal.
+export PI_CLIPBOARD_OSC52=1
+
 # for Claude Code & Gemini
 export COLORTERM=truecolor
 export FORCE_COLOR=3

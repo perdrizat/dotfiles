@@ -19,7 +19,7 @@ Each top-level directory is a stow package. Running `stow --adopt <package>` fro
 
 | Package  | Contents                            |
 |----------|-------------------------------------|
-| `bash`   | `.bash_aliases`, `.bash_extra`      |
+| `bash`   | `.bash_aliases` (shortcuts: `cc`, `ac`, `pc`), `.bash_extra` (shell setup, Pi OSC 52 clipboard) |
 | `bin`    | `~/bin/` scripts (status, validate, init) |
 | `claude` | `~/.claude/settings.json`           |
 | `pi`     | `~/.pi/agent/settings.json` + `models.json` (templates; deployed/merged as local copies by `setup.sh` — pi rewrites settings itself, so neither is stowed; favorite models and their display names are shared, active model remains local) |

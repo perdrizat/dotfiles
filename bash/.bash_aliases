@@ -7,8 +7,8 @@ alias gd='git diff'
 alias gr='git restore'
 alias grep='grep --color=auto'
 alias cc='claude --continue'
-alias cr='claude --resume'
 alias ac='agy -c'
+alias pc='pi --continue'
 # md <file.md> — render markdown with glow in the pager, wrapped to the current
 # terminal width. Uses bash's $COLUMNS (correct inside tmux), not `tput cols`,
 # which reports 80 in a command substitution because its stdout is a pipe rather

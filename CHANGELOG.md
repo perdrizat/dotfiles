@@ -10,12 +10,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- `bash/.bash_aliases`: add `pc` to continue Pi sessions.
 - Pi setup provisions the CLI, shared four-model Venice favorites with custom names, global instructions, and package updates while preserving each machine's active model.
 - Pi's startup model uses Venice's `function_calling_default` trait on fresh installs, with a concrete offline fallback; pi is documented in the agent crew and its auth file is off-limits.
 
 ### Changed
 
+- `tmux/.tmux.conf`: leave new sessions at ready shells instead of auto-starting Claude.
+- `bash/.bash_extra`, `tmux/.tmux.conf`: enable Pi's OSC 52 clipboard fallback through tmux to the host terminal.
 - `tmux/.tmux.conf`: enable extended keys and CSI-u on tmux ≥ 3.5 for Pi's modified Enter keys.
+
+### Removed
+
+- `bash/.bash_aliases`: remove the unused Claude resume alias.
 
 ## [2026-11-12]
 
