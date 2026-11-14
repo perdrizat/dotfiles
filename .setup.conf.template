@@ -15,8 +15,8 @@ INSTALL_CHROME=false     # Google apt repo → google-chrome-stable (amd64 only)
 
 # LLM agent toggles
 INSTALL_CLAUDE=true     # Claude Code CLI
-INSTALL_ANTIGRAVITY=false # Antigravity CLI (agy; replaces the retired Gemini CLI)
-INSTALL_PI=false        # Pi coding agent (pi.dev) — settings template + global AGENTS.md symlink
+INSTALL_ANTIGRAVITY=true # Antigravity CLI (agy; replaces the retired Gemini CLI)
+INSTALL_PI=true        # Pi coding agent (pi.dev) — settings template + global AGENTS.md symlink
 PI_PACKAGES="npm:pi-venice" # Pi packages installed when INSTALL_PI=true (space-separated pi sources)
 
 # SSH toggles
