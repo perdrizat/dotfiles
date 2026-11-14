@@ -1,6 +1,6 @@
 # Global Instructions
 
-These instructions apply to all LLM coding agents (Claude Code, OpenAI Codex, Google Antigravity) across all projects.
+These instructions apply to all LLM coding agents (Claude Code, OpenAI Codex, Google Antigravity, Pi) across all projects.
 
 ## Precedence
 
@@ -19,7 +19,8 @@ Where a project's own instruction file (`CONTRIBUTING.md`, or its agent specific
 - **Node Ecosystem**: Always use `fnm` for Node version management and `pnpm` for package management.
 - **Dependency Security**: In any ecosystem, restrict installation to package versions that are at least 7 days old (a release cooldown), using the package manager's own setting (e.g. `minimumReleaseAge` in `pnpm`).
 - **Auditing**: Always run GitHub CI to audit the dependencies. Audit at the project's own level (the one CI gates on, e.g. `pnpm audit --audit-level=moderate`), never bare `pnpm audit` — low advisories with no patch would fail it forever. Also run the audit on a schedule (weekly cron in CI), not only on push, since new advisories appear without any commit.
-- **Vulnerable dependency inside the 7-day cooldown** (any ecosystem): Never lower the cooldown globally. For a known-CVE fix only: (1) vet the release — registry signature/attestation plus provenance, or a trusted maintainer; (2) exempt only the exact `name@version` from the cooldown; (3) pin it exactly, using the project's own override/lock mechanism; (4) record the fixed version and the vetting in a comment next to the pin; (5) prune the exemption after 7 days. Re-check pins whenever audit runs — advisory ranges widen without any commit. If the project's `CONTRIBUTING.md` has a "Dependency security" section, it takes precedence.- **Credential files are off-limits**: Never read, print, copy, or encode secrets — `~/.ssh` keys, `~/.claude/.credentials.json`, `~/.config/gh/hosts.yml`, `~/.gnupg`, `~/.aws`, the `~/.gemini` OAuth tokens and `~/.gemini/config/mcp_config.json`, `.env` files, or the environment (`printenv`/`env`). Settings deny or prompt on these. If one is refused or prompts, stop and tell the user; don't route around it with another tool (`jq`, `xxd`, `base64`, `cp`, a script).
+- **Vulnerable dependency inside the 7-day cooldown** (any ecosystem): Never lower the cooldown globally. For a known-CVE fix only: (1) vet the release — registry signature/attestation plus provenance, or a trusted maintainer; (2) exempt only the exact `name@version` from the cooldown; (3) pin it exactly, using the project's own override/lock mechanism; (4) record the fixed version and the vetting in a comment next to the pin; (5) prune the exemption after 7 days. Re-check pins whenever audit runs — advisory ranges widen without any commit. If the project's `CONTRIBUTING.md` has a "Dependency security" section, it takes precedence.
+- **Credential files are off-limits**: Never read, print, copy, or encode secrets — `~/.ssh` keys, `~/.claude/.credentials.json`, `~/.pi/agent/auth.json`, `~/.config/gh/hosts.yml`, `~/.gnupg`, `~/.aws`, the `~/.gemini` OAuth tokens and `~/.gemini/config/mcp_config.json`, `.env` files, or the environment (`printenv`/`env`). Settings deny or prompt on these. If one is refused or prompts, stop and tell the user; don't route around it with another tool (`jq`, `xxd`, `base64`, `cp`, a script).
 
 ## Running commands (efficiency & safety)
 

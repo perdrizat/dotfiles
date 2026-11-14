@@ -1,0 +1,13 @@
+{
+  "$schema": "https://pi.dev/schemas/settings.schema.json",
+  "defaultProvider": "venice",
+  "defaultModel": "deepseek-v4-1-flash-1017-uncensored",
+  "enabledModels": [
+    "venice/deepseek-v4-1-flash-1017-uncensored",
+    "venice/deepseek-v4-pro-0813",
+    "venice/deepseek-v4-flash-0731",
+    "venice/grok-4-7"
+  ],
+  "enableInstallTelemetry": false,
+  "enableAnalytics": false
+}

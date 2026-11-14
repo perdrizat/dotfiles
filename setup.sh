@@ -9,7 +9,7 @@ DOTFILES_DIR="$HOME/dotfiles"
 # --- Shared variables (also used by validate_setup.sh) ---
 PREREQS=(git curl stow age unzip)
 APT_PACKAGES=(build-essential jq tmux)
-STOW_SKIP=(.git agents claude)
+STOW_SKIP=(.git agents claude pi)
 DOTFILES_SSH_REMOTE="git@github.com:perdrizat/dotfiles.git"
 DOTFILES_HTTPS_REMOTE="https://github.com/perdrizat/dotfiles.git"
 # Can this run install system packages? Probe the capability, not the environment: a devbox
@@ -91,6 +91,7 @@ fi
 # Defaults — overridden by .setup.conf; keeps all toggles bound even on partial configs
 INSTALL_RUST=false; INSTALL_NODE=false; INSTALL_ICP=false; INSTALL_PYTHON=false
 INSTALL_DOCKER=false; INSTALL_FF=false; INSTALL_FF_ESR=false; INSTALL_CHROME=false; INSTALL_CLAUDE=false; INSTALL_ANTIGRAVITY=false
+INSTALL_PI=false; PI_PACKAGES="npm:pi-venice"
 SSH_LOCAL=false; SSH_YUBIKEY=false
 MORE_APT_PACKAGES=""
 source "$CONFIG_FILE"
@@ -281,11 +282,14 @@ fi
 
 # Global LLM instructions — single source of truth symlinked into each agent's config dir
 GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agents/AGENTS.md"
-mkdir -p ~/.claude ~/.codex ~/.gemini
+mkdir -p ~/.claude ~/.codex ~/.gemini ~/.pi/agent
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.claude/CLAUDE.md
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.codex/AGENTS.md
 # Antigravity (agy) reads its global instructions from ~/.gemini/GEMINI.md only
 ln -sf "$GLOBAL_INSTRUCTIONS" ~/.gemini/GEMINI.md
+# Pi reads its global instructions from ~/.pi/agent/AGENTS.md (always-on, like the others —
+# the symlink is created even where pi isn't installed, so it's ready when the toggle flips)
+ln -sf "$GLOBAL_INSTRUCTIONS" ~/.pi/agent/AGENTS.md
 
 # Project-level agent symlinks at the dotfiles repo root (per validate_project.sh contract).
 # Created only when absent so we never replace a user's customization.
@@ -521,6 +525,87 @@ if [[ "$INSTALL_CLAUDE" == true ]] && ! command -v claude >/dev/null 2>&1; then
     curl -fsSL https://claude.ai/install.sh | bash
 fi
 
+if [[ "$INSTALL_PI" == true ]]; then
+    # Pi (pi.dev coding agent). Curl installer → ~/.pi/agent with a ~/.local/bin/pi entrypoint;
+    # fully user-local, so it also works on rootless devbox containers (no sudo needed). Node
+    # ≥ 22.19 comes from fnm when INSTALL_NODE=true, otherwise the pi installer provisions
+    # its own. Upgrades afterwards run through `pi update` (validate_setup.sh -u).
+    _pi_bin=""
+    command -v pi >/dev/null 2>&1 && _pi_bin="pi"
+    [ -z "$_pi_bin" ] && [ -x "$HOME/.local/bin/pi" ] && _pi_bin="$HOME/.local/bin/pi"
+    if [ -z "$_pi_bin" ]; then
+        echo "Installing Pi (pi coding agent)..."
+        curl -fsSL https://pi.dev/install.sh | sh
+        command -v pi >/dev/null 2>&1 && _pi_bin="pi"
+        [ -z "$_pi_bin" ] && [ -x "$HOME/.local/bin/pi" ] && _pi_bin="$HOME/.local/bin/pi"
+        [ -n "$_pi_bin" ] || echo "WARNING: Pi install failed — re-run setup.sh or install manually."
+    fi
+    # Deploy/merge pi settings. ~/.pi/agent/settings.json must be a LOCAL copy, never stowed:
+    # pi rewrites it itself (lastChangelogVersion after updates, packages via `pi install`),
+    # and the agent dir also holds runtime state (auth.json, sessions, npm cache) — so the
+    # pi/ package is a template carrier only, skipped from stow like claude/. Pinned policy
+    # keys: telemetry/analytics off and enabledModels (shared favorites). defaultProvider /
+    # defaultModel deploy with the template but are never re-pinned afterwards (the active
+    # model stays machine-local).
+    mkdir -p ~/.pi/agent
+    PI_SETTINGS="$HOME/.pi/agent/settings.json"
+    PI_TEMPLATE="$DOTFILES_DIR/pi/.pi/agent/settings.json"
+    _pi_fresh=false
+    if [ ! -f "$PI_SETTINGS" ]; then
+        cp "$PI_TEMPLATE" "$PI_SETTINGS"
+        _pi_fresh=true
+        echo "Deployed settings.json template to ~/.pi/agent/settings.json"
+    fi
+    # Startup model: use the Venice model currently carrying the function_calling_default
+    # trait (cheaper than default_code). Pi cannot select models by trait — defaultModel is
+    # a concrete ID — so resolve the trait against Venice's public catalog on fresh deploys
+    # and whenever the key is absent; the template's baked-in ID is the offline fallback.
+    # Once set (including a locally chosen model), it is never overwritten again.
+    if $_pi_fresh || ! jq -e 'has("defaultModel")' "$PI_SETTINGS" >/dev/null 2>&1; then
+        _pi_model=$(curl -fsSL --max-time 10 https://api.venice.ai/api/v1/models 2>/dev/null \
+            | jq -r '[.data[] | select(.type == "text" and ((.model_spec.offline // false) | not) and (((.model_spec.traits // []) | index("function_calling_default")) != null)) | .id] | first // empty')
+        if [ -n "$_pi_model" ] && jq -e --arg m "venice/$_pi_model" '(.enabledModels // []) | index($m) != null' "$PI_TEMPLATE" >/dev/null 2>&1; then
+            _pi_merged=$(jq --arg m "$_pi_model" '.defaultModel = $m' "$PI_SETTINGS" 2>/dev/null)
+            if [ -n "$_pi_merged" ]; then
+                printf '%s\n' "$_pi_merged" > "$PI_SETTINGS"
+                echo "Set pi default model: $_pi_model (Venice trait: function_calling_default)"
+            fi
+        elif [ -n "$_pi_model" ]; then
+            echo "Venice function_calling_default model $_pi_model is not in shared favorites; keeping the template fallback."
+        fi
+    fi
+    merge_settings "$PI_SETTINGS" "$PI_TEMPLATE" \
+        '.[0] * (.[1] | {enableInstallTelemetry, enableAnalytics, enabledModels} | with_entries(select(.value != null)))' \
+        "Merged template policy keys + shared favorites into ~/.pi/agent/settings.json"
+    # Pi custom model names are configured in models.json, not settings.json. Merge only the
+    # tracked Venice modelOverrides: repo aliases win for the shared favorites, while local
+    # providers and unrelated overrides remain intact. Keep this a local copy because it is
+    # user-level app config; never stow into ~/.pi/agent.
+    PI_MODELS="$HOME/.pi/agent/models.json"
+    PI_MODELS_TEMPLATE="$DOTFILES_DIR/pi/.pi/agent/models.json"
+    if [ -L "$PI_MODELS" ]; then
+        echo "WARNING: ~/.pi/agent/models.json is a symlink — skipping template merge; replace it with a local copy."
+    elif [ ! -f "$PI_MODELS" ]; then
+        cp "$PI_MODELS_TEMPLATE" "$PI_MODELS"
+        echo "Deployed models.json template to ~/.pi/agent/models.json"
+    else
+        merge_settings "$PI_MODELS" "$PI_MODELS_TEMPLATE" \
+            '.[0] * {providers: ((.[0].providers // {}) * {venice: ((.[0].providers.venice // {}) * {modelOverrides: ((.[0].providers.venice.modelOverrides // {}) * (.[1].providers.venice.modelOverrides // {}))})})}' \
+            "Merged pi favorite display names into ~/.pi/agent/models.json"
+    fi
+    # Default packages (PI_PACKAGES): `pi install` declares each source in settings.json and
+    # installs it under ~/.pi/agent/npm. Runs after the settings deploy so a fresh copy is
+    # never clobbered. Idempotent; failures only warn (pi retries on its next start).
+    if [ -n "$_pi_bin" ] && [ -n "$PI_PACKAGES" ]; then
+        read -ra _pi_pkgs <<< "$PI_PACKAGES"
+        for _pi_src in "${_pi_pkgs[@]}"; do
+            [ -n "$_pi_src" ] || continue
+            echo "Installing pi package: $_pi_src"
+            "$_pi_bin" install "$_pi_src" || echo "WARNING: pi install $_pi_src failed (offline?) — pi retries on its next start."
+        done
+    fi
+fi
+
 if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     # Pre-CLI-era leftover: ~/.local/bin/agy was a symlink to the Windows Antigravity
     # IDE binary. Dangling (or /mnt/*-pointing) links block the installer's write with
@@ -649,6 +734,10 @@ echo ""
 if command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1; then
     echo "gh not authenticated. New PAT: https://github.com/settings/personal-access-tokens"
     echo "Then: gh auth login --with-token   (silent: paste token, hit Enter, type Ctrl-D)"
+fi
+if [[ "$INSTALL_PI" == true ]] && [ ! -s "$HOME/.pi/agent/auth.json" ]; then
+    echo ""
+    echo "pi not authenticated. Start pi and run /login (or: pi auth login venice)."
 fi
 if [[ "$INSTALL_ANTIGRAVITY" == true ]] && [ -f "$HOME/.gemini/config/mcp_config.json" ]; then
     _has_linear_auth=$(jq -r '.mcpServers.linear.headers.Authorization // empty' "$HOME/.gemini/config/mcp_config.json" 2>/dev/null)

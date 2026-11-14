@@ -22,6 +22,7 @@ Each top-level directory is a stow package. Running `stow --adopt <package>` fro
 | `bash`   | `.bash_aliases`, `.bash_extra`      |
 | `bin`    | `~/bin/` scripts (status, validate, init) |
 | `claude` | `~/.claude/settings.json`           |
+| `pi`     | `~/.pi/agent/settings.json` + `models.json` (templates; deployed/merged as local copies by `setup.sh` — pi rewrites settings itself, so neither is stowed; favorite models and their display names are shared, active model remains local) |
 | `gemini` | `~/.gemini/config/skills` + `skills.inactive` (Antigravity `agy` skills). Also carries the `agy` settings template (`antigravity-cli/settings.json`) and MCP config template (`config/mcp_config.json.template`) — excluded from stow via `.stow-local-ignore`; `setup.sh` deploys/merges them as local files, never symlinks |
 | `git`    | `.gitconfig`                        |
 | `ssh`    | `.ssh/config`, `.ssh/id_ed25519.age` |
@@ -34,16 +35,17 @@ This directory is **not** a stow package — its symlinks are created manually i
 
 ## LLM agent instructions
 
-All LLM coding agents (Claude Code, OpenAI Codex, Google Antigravity) share a single source of truth for instructions at both levels:
+All LLM coding agents (Claude Code, OpenAI Codex, Google Antigravity, Pi) share a single source of truth for instructions at both levels:
 
 **Global** — `agents/AGENTS.md` is symlinked by `setup.sh` to:
 - `~/.claude/CLAUDE.md` (Claude Code)
 - `~/.codex/AGENTS.md` (OpenAI Codex)
 - `~/.gemini/GEMINI.md` (Google Antigravity `agy` — global config file)
+- `~/.pi/agent/AGENTS.md` (Pi)
 
 **Per-project** — `CONTRIBUTING.md` in the project root is the primary file. Agent-specific symlinks point to it:
 - `CLAUDE.md` → `CONTRIBUTING.md` (Claude Code)
-- `AGENTS.md` → `CONTRIBUTING.md` (OpenAI Codex, Google Antigravity)
+- `AGENTS.md` → `CONTRIBUTING.md` (OpenAI Codex, Google Antigravity, Pi — pi reads `AGENTS.md` natively)
 
 These symlinks are gitignored — only `CONTRIBUTING.md` is committed.
 

@@ -110,6 +110,11 @@ if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
         dfxvm update || true
     fi
 
+    if [[ "$INSTALL_PI" == true ]] && command -v pi >/dev/null 2>&1; then
+        printf "\n${CYAN}Updating Pi + installed packages${NC}\n"
+        pi update --all || true
+    fi
+
     echo ""
     printf "${GREEN}${BOLD}Updates complete!${NC}\n\n"
     exit 0
@@ -353,6 +358,7 @@ GLOBAL_INSTRUCTIONS="$DOTFILES_DIR/agents/AGENTS.md"
 check_symlink ".claude/CLAUDE.md" "$HOME/.claude/CLAUDE.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".codex/AGENTS.md" "$HOME/.codex/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 check_symlink ".gemini/GEMINI.md" "$HOME/.gemini/GEMINI.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
+check_symlink ".pi/agent/AGENTS.md" "$HOME/.pi/agent/AGENTS.md" "$GLOBAL_INSTRUCTIONS" "llm-global"
 
 # --- Claude Code Settings ---
 # Only when Claude is enabled — a disabled machine has no Claude settings to check (the
@@ -490,6 +496,114 @@ elif [ -f "$AGY_MCP" ]; then
 else
     print_row "agy mcp_config.json" "${RED}x Missing${NC}" "run setup.sh to create from template"
     missing_items+=("agy-mcp-config")
+fi
+fi
+
+# --- Pi Configuration ---
+# Only when pi is enabled — mirrors the Claude checks: settings.json must be a local copy
+# (pi rewrites it itself: lastChangelogVersion, packages via `pi install`), the telemetry
+# policy keys must be present and false, enabledModels must match the shared template, and
+# models.json must contain the shared friendly names. defaultProvider/defaultModel are checked
+# for presence only — the active model stays machine-local. auth.json is existence-only; never read.
+if [[ "$INSTALL_PI" == true ]]; then
+print_header "Pi Configuration"
+
+PI_SETTINGS="$HOME/.pi/agent/settings.json"
+if [ -L "$PI_SETTINGS" ]; then
+    target=$(readlink "$PI_SETTINGS")
+    print_row "pi settings.json" "${YELLOW}~ Is a symlink${NC}" "→ $target (should be a copy)"
+    missing_items+=("pi-settings-symlink")
+elif [ -f "$PI_SETTINGS" ]; then
+    required_keys=("enableInstallTelemetry" "enableAnalytics" "enabledModels")
+    missing_keys=()
+
+    for key in "${required_keys[@]}"; do
+        # has() tests presence regardless of value — see the Claude check above for why.
+        if ! jq -e "has(\"$key\")" "$PI_SETTINGS" >/dev/null 2>&1; then
+            missing_keys+=("$key")
+        fi
+    done
+
+    if [ ${#missing_keys[@]} -eq 0 ]; then
+        print_row "pi settings.json" "${GREEN}✓ Complete${NC}" "policy keys present"
+    else
+        print_row "pi settings.json" "${YELLOW}~ Missing keys${NC}" "${missing_keys[*]}"
+        missing_items+=("pi-settings")
+    fi
+
+    # Telemetry/analytics stay off across machines (the pinned policy keys)
+    if ! jq -e '.enableInstallTelemetry == false and .enableAnalytics == false' "$PI_SETTINGS" >/dev/null 2>&1; then
+        print_row "pi telemetry" "${YELLOW}~ Not disabled${NC}" "want enableInstallTelemetry/enableAnalytics false (re-run setup.sh)"
+        missing_items+=("pi-settings")
+    fi
+
+    # Favorites are synced exactly from the repository template; the selected/default model
+    # remains local and is deliberately not compared with the template.
+    if jq -e --slurpfile t "$DOTFILES_DIR/pi/.pi/agent/settings.json" '.enabledModels == $t[0].enabledModels' "$PI_SETTINGS" >/dev/null 2>&1; then
+        print_row "pi favorites" "${GREEN}✓ Synced${NC}" "4 shared models"
+    else
+        print_row "pi favorites" "${YELLOW}~ Out of sync${NC}" "run setup.sh to sync favorites"
+        missing_items+=("pi-favorites")
+    fi
+
+    # Startup model: presence matters (hit-the-ground-running), value is local choice
+    _pi_model_info=$(jq -r '(.defaultProvider // "") + "/" + (.defaultModel // "")' "$PI_SETTINGS" 2>/dev/null)
+    if [ -n "$_pi_model_info" ] && [ "$_pi_model_info" != "/" ]; then
+        print_row "pi startup model" "${GREEN}✓ Set${NC}" "$_pi_model_info"
+        if jq -e --arg m "$_pi_model_info" '(.enabledModels // []) | index($m) != null' "$PI_SETTINGS" >/dev/null 2>&1; then
+            print_row "pi active model" "${GREEN}✓ In favorites${NC}" "local default; preserved across setup runs"
+        else
+            print_row "pi active model" "${YELLOW}~ Outside favorites${NC}" "Pi starts with the first shared favorite; select one and Ctrl+S to save locally"
+            missing_items+=("pi-active-model")
+        fi
+    else
+        print_row "pi startup model" "${YELLOW}~ Unset${NC}" "pi falls back to Automatic (re-run setup.sh)"
+        missing_items+=("pi-settings")
+    fi
+
+    # Every PI_PACKAGES source must be declared (string entries; object filters can't match)
+    if [ -n "${PI_PACKAGES:-}" ]; then
+        read -ra _pi_want <<< "$PI_PACKAGES"
+        _pi_missing=()
+        for _pi_src in "${_pi_want[@]}"; do
+            [ -n "$_pi_src" ] || continue
+            jq -e --arg s "$_pi_src" '(.packages // []) | any(. == $s)' "$PI_SETTINGS" >/dev/null 2>&1 || _pi_missing+=("$_pi_src")
+        done
+        if [ ${#_pi_missing[@]} -eq 0 ]; then
+            print_row "pi packages" "${GREEN}✓ Declared${NC}" "$PI_PACKAGES"
+        else
+            print_row "pi packages" "${YELLOW}~ Missing${NC}" "${_pi_missing[*]}"
+            missing_items+=("pi-packages")
+        fi
+    fi
+
+    # Friendly labels live in models.json modelOverrides; keep it local, not stowed.
+    PI_MODELS="$HOME/.pi/agent/models.json"
+    if [ -L "$PI_MODELS" ]; then
+        print_row "pi models.json" "${YELLOW}~ Is a symlink${NC}" "should be a local copy"
+        missing_items+=("pi-models-symlink")
+    elif [ -f "$PI_MODELS" ]; then
+        if jq -e --slurpfile t "$DOTFILES_DIR/pi/.pi/agent/models.json" '. as $local | $t[0].providers.venice.modelOverrides | to_entries | all(.[]; $local.providers.venice.modelOverrides[.key].name == .value.name)' "$PI_MODELS" >/dev/null 2>&1; then
+            print_row "pi model names" "${GREEN}✓ Synced${NC}" "friendly favorite labels"
+        else
+            print_row "pi model names" "${YELLOW}~ Out of sync${NC}" "run setup.sh to sync labels"
+            missing_items+=("pi-model-names")
+        fi
+    else
+        print_row "pi models.json" "${RED}x Missing${NC}" "run setup.sh to deploy favorite labels"
+        missing_items+=("pi-models")
+    fi
+
+    # Credentials: existence only — auth.json is an off-limits credential file (agents/AGENTS.md)
+    if [ -s "$HOME/.pi/agent/auth.json" ]; then
+        print_row "pi auth" "${GREEN}✓ Present${NC}" "auth.json exists"
+    else
+        print_row "pi auth" "${YELLOW}~ Not logged in${NC}" "run pi, then /login (or: pi auth login venice)"
+        missing_items+=("pi-auth")
+    fi
+else
+    print_row "pi settings.json" "${RED}x Missing${NC}" "run setup.sh to create from template"
+    missing_items+=("pi-settings")
 fi
 fi
 
@@ -835,7 +949,7 @@ if [[ "$INSTALL_DOCKER" == true ]]; then
 fi
 
 # --- LLM Agents ---
-if [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
+if [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]] || [[ "$INSTALL_PI" == true ]]; then
     print_header "LLM Agents"
 fi
 
@@ -859,13 +973,22 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     fi
 fi
 
+if [[ "$INSTALL_PI" == true ]]; then
+    if command -v pi >/dev/null 2>&1; then
+        print_row "Pi CLI" "${GREEN}✓ Installed${NC}" "$(pi --version 2>/dev/null || echo unknown)"
+    else
+        print_row "Pi CLI" "${RED}x Missing${NC}" ""
+        missing_items+=("pi-cli")
+    fi
+fi
+
 # Migration: Gemini CLI is retired (stops serving 2026-06-18), replaced by Antigravity CLI.
 # Flag a leftover `gemini` binary or an obsolete INSTALL_GEMINI_CLI key in .setup.conf.
 gemini_leftover=false
 command -v gemini >/dev/null 2>&1 && gemini_leftover=true
 grep -q '^INSTALL_GEMINI_CLI=' "$CONFIG_FILE" 2>/dev/null && gemini_leftover=true
 if $gemini_leftover; then
-    [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]] || print_header "LLM Agents"
+    [[ "$INSTALL_CLAUDE" == true ]] || [[ "$INSTALL_ANTIGRAVITY" == true ]] || [[ "$INSTALL_PI" == true ]] || print_header "LLM Agents"
     print_row "Gemini CLI" "${YELLOW}~ Retired${NC}" "migrate INSTALL_GEMINI_CLI → INSTALL_ANTIGRAVITY"
     missing_items+=("gemini-migrate")
 fi
@@ -911,7 +1034,7 @@ setup_items=()
 manual_items=()
 for item in "${unique_items[@]}"; do
     case "$item" in
-        prereq-*|pro-apt-news|pro-mask-services|dotfiles-remote|gh-config|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows|agy-mcp-config|agy-config-dir)
+        prereq-*|pro-apt-news|pro-mask-services|dotfiles-remote|gh-config|conf-key-*|stow-*|bashrc-loader|ssh-decrypt|ssh-regen-pub|ssh-dir-perms|ssh-key-perms|ssh-config-perms|llm-global|project-agent-symlinks|bin-exec|apt-*|install-*|ff-snap-pin|path-dedup|docker-group|claude-cli|antigravity-cli|claude-settings|agy-settings|gemini-migrate|claude-untracked-allows|agy-untracked-allows|claude-template-allows|agy-template-allows|agy-mcp-config|agy-config-dir|pi-cli|pi-settings|pi-settings-symlink|pi-packages|pi-favorites|pi-model-names|pi-models)
             setup_items+=("$item") ;;
         *)
             manual_items+=("$item") ;;
@@ -975,6 +1098,18 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
         agy-linear-auth)
             printf "\n  ${CYAN}# Authenticate agy Linear MCP server (personal API key from https://linear.app/settings/api)${NC}\n"
             echo "  agy mcp add --header \"Authorization: Bearer <LINEAR_API_KEY>\" linear https://mcp.linear.app/mcp"
+            ;;
+        pi-auth)
+            printf "\n  ${CYAN}# Authenticate pi with Venice${NC}\n"
+            echo "  pi   # then /login inside pi — or: pi auth login venice"
+            ;;
+        pi-active-model)
+            printf "\n  ${CYAN}# Choose this machine's active model from the shared favorites${NC}\n"
+            echo "  pi   # open /model, choose one of the four favorites, then Ctrl+S to save locally"
+            ;;
+        pi-models-symlink)
+            printf "\n  ${CYAN}# ~/.pi/agent/models.json must be a local copy, not a symlink${NC}\n"
+            echo "  # Preserve your current config, make it a regular file, then run setup.sh to merge favorite labels."
             ;;
     esac
 done
