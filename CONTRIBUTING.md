@@ -71,7 +71,7 @@ Reports green/yellow/red per item and prints fix commands in dependency order. M
 
 ## Agent apps and Node ordering
 
-Node LTS is always installed. It is the prerequisite every agent here shares, and an installer that finds no Node on PATH provisions a private copy of its own — leaving the machine with two trees, only one of them managed by `fnm`. `setup.sh` therefore installs/updates `fnm` and Node LTS (moving the `default` alias to it) before any agent or app, and `validate_setup.sh -u` does the same on update runs. The global tooling on top — `pnpm`, `vite` — is *not* a prerequisite and stays behind `INSTALL_NODE`.
+Node LTS is always installed. It is the prerequisite every agent here shares, and an installer that finds no Node on PATH provisions a private copy of its own — leaving the machine with two trees, only one of them managed by `fnm`. `setup.sh` therefore installs/updates `fnm` and Node LTS (moving the `default` alias to it) before any agent or app, and `validate_setup.sh -u` does the same on update runs. Both put node/npm on PATH by resolving that alias rather than through `fnm env`, which needs a writable `/run/user/<uid>` — `bash/.bash_extra` drops a dangling `XDG_RUNTIME_DIR` for the same reason. The global tooling on top — `pnpm`, `vite` — is *not* a prerequisite and stays behind `INSTALL_NODE`.
 
 ## Pi auth (Venice)
 

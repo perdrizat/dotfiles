@@ -494,8 +494,16 @@ export PATH="$HOME/.local/share/fnm:$PATH"
 fnm install --lts
 fnm default lts-latest
 # Make fnm available in this script (bashrc guard blocks source in non-interactive shells).
-# After the alias move: `fnm env` snapshots the resolved version onto PATH.
-eval "$(fnm env --shell bash)"
+# node/npm go on PATH from the resolved default alias rather than `fnm env`: the latter creates a
+# per-shell dir under $XDG_RUNTIME_DIR and fails outright — leaving npm unavailable for the tool
+# install and for the agents below — where that variable points at a missing directory (no
+# systemd user session, some containers). `fnm env` is only the fallback.
+_fnm_bin=$(readlink -f "$HOME/.local/share/fnm/aliases/default" 2>/dev/null)
+if [ -d "$_fnm_bin/bin" ]; then
+    export PATH="$_fnm_bin/bin:$PATH"
+elif ! eval "$(env -u XDG_RUNTIME_DIR fnm env --shell bash 2>/dev/null)" 2>/dev/null; then
+    echo "WARNING: could not put Node on PATH — npm tooling and agents may fail."
+fi
 mkdir -p ~/.local/share/bash-completion/completions
 fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
 

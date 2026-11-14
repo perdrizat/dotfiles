@@ -15,6 +15,12 @@ if [ -d ~/devbox/bin ]; then
 fi
 export PATH
 
+# Drop a dangling XDG_RUNTIME_DIR. Some boxes (no systemd user session, certain containers) export
+# one pointing at a directory that does not exist; `fnm env` then fails to create its multishell
+# dir and leaves Node off PATH in every shell — which breaks pi and anything else needing node.
+# Unset only when the path is genuinely absent, so a working runtime dir is left alone.
+[ -n "$XDG_RUNTIME_DIR" ] && [ ! -d "$XDG_RUNTIME_DIR" ] && unset XDG_RUNTIME_DIR
+
 # Collapse duplicate PATH entries, keeping the first occurrence so precedence is
 # unchanged. Needed because third-party installers (fnm, Antigravity, rustup, …) append
 # unconditional `PATH=…:$PATH` lines to ~/.bashrc and ~/.profile — files that re-run for

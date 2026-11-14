@@ -106,8 +106,13 @@ if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
         export PATH="$HOME/.local/share/fnm:$PATH"
         fnm install --lts
         fnm default lts-latest
-        # After the alias move — `fnm env` snapshots the resolved version onto PATH
-        eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
+        # node/npm on PATH from the alias, not `fnm env` — that needs a writable
+        # $XDG_RUNTIME_DIR and gives up on boxes where it points at a missing dir.
+        if _fnm_bin=$(readlink -f "$HOME/.local/share/fnm/aliases/default" 2>/dev/null) && [ -d "$_fnm_bin/bin" ]; then
+            export PATH="$_fnm_bin/bin:$PATH"
+        else
+            eval "$(env -u XDG_RUNTIME_DIR fnm env --shell bash 2>/dev/null)" 2>/dev/null || true
+        fi
         # Global npm tooling is opt-in (INSTALL_NODE), same 7-day cooldown as setup.sh
         if [[ "$INSTALL_NODE" == true ]]; then
             npm update -g --before="$(date -d '7 days ago' +%F)" --allow-scripts=pnpm vite pnpm || true
@@ -837,8 +842,13 @@ fi
 
 # Node itself is not toggleable: every agent below is a Node program, so the base runtime is
 # always checked for. The global tooling on top is opt-in via INSTALL_NODE.
-# Ensure fnm is on PATH for this check
-[[ -d "$HOME/.local/share/fnm" ]] && export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
+# Resolve node/npm through the default alias rather than `fnm env`, which fails where
+# $XDG_RUNTIME_DIR points at a missing directory — node would then look "missing".
+if [[ -d "$HOME/.local/share/fnm" ]]; then
+    export PATH="$HOME/.local/share/fnm:$PATH"
+    _fnm_bin=$(readlink -f "$HOME/.local/share/fnm/aliases/default" 2>/dev/null)
+    [ -d "$_fnm_bin/bin" ] && export PATH="$_fnm_bin/bin:$PATH"
+fi
 if command -v fnm >/dev/null 2>&1; then
     print_row "fnm" "${GREEN}✓ Installed${NC}" "$(fnm --version 2>/dev/null)"
 else

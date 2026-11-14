@@ -28,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - `bash/.bash_aliases`: remove the unused Claude resume alias.
 
+### Fixed
+
+- `setup.sh`, `bin/bin/validate_setup.sh`: resolve node/npm through fnm's `default` alias instead of `fnm env`, which fails on boxes where `$XDG_RUNTIME_DIR` points at a missing directory (no systemd user session) and left the run with `npm: command not found`.
+- `bash/.bash_extra`: unset a dangling `XDG_RUNTIME_DIR` so `fnm env` in `~/.bashrc` keeps working and node stays on PATH in every shell.
+
 ## [2026-11-12]
 
 ### Changed
