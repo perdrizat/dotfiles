@@ -69,6 +69,14 @@ validate_setup.sh
 
 Reports green/yellow/red per item and prints fix commands in dependency order. Most findings consolidate into a single fix — re-running the idempotent `setup.sh`; targeted commands are printed only for what it can't do (repo clone/sync, YubiKey relay, Claude settings deploy).
 
+## Agent apps and Node ordering
+
+Node LTS is always installed. It is the prerequisite every agent here shares, and an installer that finds no Node on PATH provisions a private copy of its own — leaving the machine with two trees, only one of them managed by `fnm`. `setup.sh` therefore installs/updates `fnm` and Node LTS (moving the `default` alias to it) before any agent or app, and `validate_setup.sh -u` does the same on update runs. The global tooling on top — `pnpm`, `vite` — is *not* a prerequisite and stays behind `INSTALL_NODE`.
+
+## Pi auth (Venice)
+
+`setup.sh` stores the Venice API key in `~/.pi/agent/auth.json` while it installs pi — prompted on the controlling terminal, or taken from `$VENICE_API_KEY` when headless. Without a key the first interactive start comes up with an empty model list and demands `/login`, then needs a restart before models appear. `defaultModel` must stay a bare model ID (provider comes from `defaultProvider`); a `venice/`-prefixed value matches nothing and is migrated on the next setup run.
+
 ## GitHub CLI (`gh`) auth
 
 Git transport is SSH only where a key exists — `SSH_YUBIKEY` (touch per use) or `SSH_LOCAL` in `.setup.conf` — and HTTPS everywhere else (e.g. devbox containers), where git pushes with the `gh` token. `setup.sh` derives both the dotfiles remote and `gh`'s `git_protocol` from that; `gh/.config/gh/config.yml` is a template deployed as a local copy (not stowed), since it differs per machine and `gh` rewrites it. An HTTPS machine also skips the `ssh` stow package. The API token has no hardware-presence check — so keep its power, lifetime and exposure small:

@@ -98,11 +98,20 @@ if [[ "${1:-}" == "-u" || "${1:-}" == "--update" ]]; then
         rustup update
     fi
 
-    if [[ "$INSTALL_NODE" == true ]] && command -v fnm >/dev/null 2>&1; then
+    # Node itself is not toggleable — the agents below need it on PATH before they install.
+    # Update LTS and move the `default` alias onto it: fnm pins that alias to the first version
+    # installed, so without this every new shell (and every agent) keeps starting a stale Node.
+    if command -v fnm >/dev/null 2>&1; then
         printf "\n${CYAN}Updating Node LTS${NC}\n"
         export PATH="$HOME/.local/share/fnm:$PATH"
-        eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
         fnm install --lts
+        fnm default lts-latest
+        # After the alias move — `fnm env` snapshots the resolved version onto PATH
+        eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
+        # Global npm tooling is opt-in (INSTALL_NODE), same 7-day cooldown as setup.sh
+        if [[ "$INSTALL_NODE" == true ]]; then
+            npm update -g --before="$(date -d '7 days ago' +%F)" --allow-scripts=pnpm vite pnpm || true
+        fi
     fi
 
     if [[ "$INSTALL_ICP" == true ]] && command -v dfxvm >/dev/null 2>&1; then
@@ -598,7 +607,7 @@ elif [ -f "$PI_SETTINGS" ]; then
     if [ -s "$HOME/.pi/agent/auth.json" ]; then
         print_row "pi auth" "${GREEN}✓ Present${NC}" "auth.json exists"
     else
-        print_row "pi auth" "${YELLOW}~ Not logged in${NC}" "run pi, then /login (or: pi auth login venice)"
+        print_row "pi auth" "${YELLOW}~ Not logged in${NC}" "re-run setup.sh and paste the key (or: pi auth login venice)"
         missing_items+=("pi-auth")
     fi
 else
@@ -826,28 +835,30 @@ if [[ "$INSTALL_RUST" == true ]]; then
     fi
 fi
 
+# Node itself is not toggleable: every agent below is a Node program, so the base runtime is
+# always checked for. The global tooling on top is opt-in via INSTALL_NODE.
+# Ensure fnm is on PATH for this check
+[[ -d "$HOME/.local/share/fnm" ]] && export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
+if command -v fnm >/dev/null 2>&1; then
+    print_row "fnm" "${GREEN}✓ Installed${NC}" "$(fnm --version 2>/dev/null)"
+else
+    print_row "fnm" "${RED}x Missing${NC}" ""
+    missing_items+=("install-fnm")
+fi
+# Node and npm both come from fnm — must be present and runnable
+if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
+    print_row "Node" "${GREEN}✓ Installed${NC}" "$(node --version 2>/dev/null)"
+else
+    print_row "Node" "${RED}x Missing${NC}" "no active Node version"
+    missing_items+=("install-node")
+fi
+if command -v npm >/dev/null 2>&1 && npm --version >/dev/null 2>&1; then
+    print_row "npm" "${GREEN}✓ Installed${NC}" "$(npm --version 2>/dev/null)"
+else
+    print_row "npm" "${RED}x Missing${NC}" ""
+    missing_items+=("install-node")
+fi
 if [[ "$INSTALL_NODE" == true ]]; then
-    # Ensure fnm is on PATH for this check
-    [[ -d "$HOME/.local/share/fnm" ]] && export PATH="$HOME/.local/share/fnm:$PATH" && eval "$(fnm env --shell bash 2>/dev/null)" 2>/dev/null
-    if command -v fnm >/dev/null 2>&1; then
-        print_row "fnm" "${GREEN}✓ Installed${NC}" "$(fnm --version 2>/dev/null)"
-    else
-        print_row "fnm" "${RED}x Missing${NC}" ""
-        missing_items+=("install-fnm")
-    fi
-    # Node and npm both come from fnm — must be present and runnable
-    if command -v node >/dev/null 2>&1 && node --version >/dev/null 2>&1; then
-        print_row "Node" "${GREEN}✓ Installed${NC}" "$(node --version 2>/dev/null)"
-    else
-        print_row "Node" "${RED}x Missing${NC}" "no active Node version"
-        missing_items+=("install-node")
-    fi
-    if command -v npm >/dev/null 2>&1 && npm --version >/dev/null 2>&1; then
-        print_row "npm" "${GREEN}✓ Installed${NC}" "$(npm --version 2>/dev/null)"
-    else
-        print_row "npm" "${RED}x Missing${NC}" ""
-        missing_items+=("install-node")
-    fi
     if command -v vite >/dev/null 2>&1; then
         vite_ver=$(vite --version 2>/dev/null | tail -1)
         print_row "vite" "${GREEN}✓ Installed${NC}" "$vite_ver"
@@ -1100,8 +1111,8 @@ for item in "${manual_items[@]+${manual_items[@]}}"; do
             echo "  agy mcp add --header \"Authorization: Bearer <LINEAR_API_KEY>\" linear https://mcp.linear.app/mcp"
             ;;
         pi-auth)
-            printf "\n  ${CYAN}# Authenticate pi with Venice${NC}\n"
-            echo "  pi   # then /login inside pi — or: pi auth login venice"
+            printf "\n  ${CYAN}# Store the Venice API key (https://venice.ai/settings/api)${NC}\n"
+            echo "  ( cd ~/dotfiles && bash setup.sh )  # prompts for it — or: pi auth login venice --api-key"
             ;;
         pi-active-model)
             printf "\n  ${CYAN}# Choose this machine's active model from the shared favorites${NC}\n"

@@ -477,33 +477,41 @@ if [[ "$INSTALL_RUST" == true ]] && ! command -v rustup >/dev/null 2>&1; then
     NEEDS_RESTART=true
 fi
 
+# --- Node LTS (always, and ahead of every agent/app) ---
+# Base Node itself is not toggleable: the agents and apps installed below are Node programs, and
+# an installer that finds no Node on PATH provisions a private copy of its own (pi's does) — then
+# the machine has two Node trees, one managed by fnm and one nobody updates. Node always goes
+# first. The global tooling on top (pnpm, vite) stays opt-in via INSTALL_NODE.
+if ! command -v fnm >/dev/null 2>&1; then
+    echo "Installing fnm (Fast Node Manager)..."
+    curl -fsSL https://fnm.vercel.app/install | bash
+    NEEDS_RESTART=true
+fi
+export PATH="$HOME/.local/share/fnm:$PATH"
+# Always install LTS: a no-op when it is current, an upgrade when not. The `default` alias is
+# repointed at it in the same breath — fnm pins that alias to whatever version was installed
+# first, so leaving it alone keeps every new shell starting the stale one forever.
+fnm install --lts
+fnm default lts-latest
+# Make fnm available in this script (bashrc guard blocks source in non-interactive shells).
+# After the alias move: `fnm env` snapshots the resolved version onto PATH.
+eval "$(fnm env --shell bash)"
+mkdir -p ~/.local/share/bash-completion/completions
+fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
+
 if [[ "$INSTALL_NODE" == true ]]; then
-    if ! command -v fnm >/dev/null 2>&1; then
-        echo "Installing fnm (Fast Node Manager)..."
-        curl -fsSL https://fnm.vercel.app/install | bash
-        NEEDS_RESTART=true
-    fi
-    # Make fnm available in this script (bashrc guard blocks source in non-interactive shells)
-    export PATH="$HOME/.local/share/fnm:$PATH"
-    eval "$(fnm env --shell bash)"
-    # Install LTS only when no Node is present yet; upgrades happen via `validate_setup.sh -u`
-    if ! fnm ls 2>/dev/null | grep -qE 'v[0-9]+\.'; then
-        echo "Installing Node LTS via fnm..."
-        fnm install --lts
-    fi
-    # Install only the global npm tools that are missing
+    # Global npm tools: install what's missing, then update the rest. Same 7-day cooldown on both.
+    # --allow-scripts=pnpm: its install script links the native binary; without it every pnpm
+    # call runs through Node.js and warns on each interactive use.
+    COOLDOWN="$(date -d '7 days ago' +%F)"
     node_globals_missing=()
     command -v vite >/dev/null 2>&1 || node_globals_missing+=(vite)
     command -v pnpm >/dev/null 2>&1 || node_globals_missing+=(pnpm)
     if [ ${#node_globals_missing[@]} -gt 0 ]; then
         echo "Installing global npm tools: ${node_globals_missing[*]}"
-        # --before: only versions published at least 7 days ago (supply-chain cooldown).
-        # --allow-scripts=pnpm: its install script links the native binary; without it every
-        # pnpm call runs through Node.js and warns on each interactive use.
-        npm install -g --before="$(date -d '7 days ago' +%F)" --allow-scripts=pnpm "${node_globals_missing[@]}"
+        npm install -g --before="$COOLDOWN" --allow-scripts=pnpm "${node_globals_missing[@]}"
     fi
-    mkdir -p ~/.local/share/bash-completion/completions
-    fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
+    npm update -g --before="$COOLDOWN" --allow-scripts=pnpm vite pnpm || echo "WARNING: npm update -g failed"
 fi
 
 if [[ "$INSTALL_ICP" == true ]]; then
@@ -528,8 +536,8 @@ fi
 if [[ "$INSTALL_PI" == true ]]; then
     # Pi (pi.dev coding agent). Curl installer → ~/.pi/agent with a ~/.local/bin/pi entrypoint;
     # fully user-local, so it also works on rootless devbox containers (no sudo needed). Node
-    # ≥ 22.19 comes from fnm when INSTALL_NODE=true, otherwise the pi installer provisions
-    # its own. Upgrades afterwards run through `pi update` (validate_setup.sh -u).
+    # ≥ 22.19 is already on PATH from the fnm block above, so the installer reuses it instead of
+    # provisioning a second tree. Upgrades afterwards run through `pi update` (validate_setup.sh -u).
     _pi_bin=""
     command -v pi >/dev/null 2>&1 && _pi_bin="pi"
     [ -z "$_pi_bin" ] && [ -x "$HOME/.local/bin/pi" ] && _pi_bin="$HOME/.local/bin/pi"
@@ -539,6 +547,31 @@ if [[ "$INSTALL_PI" == true ]]; then
         command -v pi >/dev/null 2>&1 && _pi_bin="pi"
         [ -z "$_pi_bin" ] && [ -x "$HOME/.local/bin/pi" ] && _pi_bin="$HOME/.local/bin/pi"
         [ -n "$_pi_bin" ] || echo "WARNING: Pi install failed — re-run setup.sh or install manually."
+    fi
+    # Venice API key up front. pi-venice resolves it from ~/.pi/agent/auth.json (or
+    # $VENICE_API_KEY); without either, the first start shows an empty model list, makes you
+    # /login, and still needs a restart before models appear. Skip when a key is stored, take
+    # $VENICE_API_KEY when set (headless), otherwise prompt on the controlling terminal — under
+    # `curl | bash` stdin is the script itself, so /dev/tty is the only safe read source.
+    PI_AUTH="$HOME/.pi/agent/auth.json"
+    if ! jq -e '.venice.key? // empty' "$PI_AUTH" >/dev/null 2>&1; then
+        _venice_key="${VENICE_API_KEY:-}"
+        if [ -z "$_venice_key" ] && [ -r /dev/tty ]; then
+            printf 'Venice API key (https://venice.ai/settings/api — blank to skip): '
+            read -rs _venice_key < /dev/tty || true
+            printf '\n'
+        fi
+        if [ -n "$_venice_key" ]; then
+            [ -s "$PI_AUTH" ] || echo '{}' > "$PI_AUTH"
+            _pi_auth_merged=$(jq --arg k "$_venice_key" '.venice = {type: "api_key", key: $k}' "$PI_AUTH" 2>/dev/null)
+            if [ -n "$_pi_auth_merged" ]; then
+                printf '%s\n' "$_pi_auth_merged" > "$PI_AUTH"
+                chmod 600 "$PI_AUTH"
+                echo "Stored the Venice API key in ~/.pi/agent/auth.json"
+            else
+                echo "WARNING: could not write ~/.pi/agent/auth.json — run pi and /login instead."
+            fi
+        fi
     fi
     # Deploy/merge pi settings. ~/.pi/agent/settings.json must be a LOCAL copy, never stowed:
     # pi rewrites it itself (lastChangelogVersion after updates, packages via `pi install`),
@@ -561,6 +594,17 @@ if [[ "$INSTALL_PI" == true ]]; then
     # a concrete ID — so resolve the trait against Venice's public catalog on fresh deploys
     # and whenever the key is absent; the template's baked-in ID is the offline fallback.
     # Once set (including a locally chosen model), it is never overwritten again.
+    # defaultModel is a BARE id: pi looks it up as getModel(defaultProvider, defaultModel), so
+    # a `venice/`-prefixed value matches nothing and silently degrades to Automatic — which is
+    # the "no models configured" start when the provider also has no key. Strip any such
+    # prefix left by an older write.
+    if jq -e '.defaultModel | test("/")' "$PI_SETTINGS" >/dev/null 2>&1; then
+        _pi_bare=$(jq '. as $s | .defaultModel |= (if startswith(($s.defaultProvider // "") + "/") then ltrimstr(($s.defaultProvider // "") + "/") else . end)' "$PI_SETTINGS" 2>/dev/null)
+        if [ -n "$_pi_bare" ]; then
+            printf '%s\n' "$_pi_bare" > "$PI_SETTINGS"
+            echo "Stripped the provider prefix from the pi default model (bare IDs only)"
+        fi
+    fi
     if $_pi_fresh || ! jq -e 'has("defaultModel")' "$PI_SETTINGS" >/dev/null 2>&1; then
         _pi_model=$(curl -fsSL --max-time 10 https://api.venice.ai/api/v1/models 2>/dev/null \
             | jq -r '[.data[] | select(.type == "text" and ((.model_spec.offline // false) | not) and (((.model_spec.traits // []) | index("function_calling_default")) != null)) | .id] | first // empty')
@@ -595,11 +639,18 @@ if [[ "$INSTALL_PI" == true ]]; then
     fi
     # Default packages (PI_PACKAGES): `pi install` declares each source in settings.json and
     # installs it under ~/.pi/agent/npm. Runs after the settings deploy so a fresh copy is
-    # never clobbered. Idempotent; failures only warn (pi retries on its next start).
+    # never clobbered. Skipped once the source is both declared and materialised — `pi install`
+    # rewrites settings and hits npm on every call, pure noise on an established machine.
+    # Failures only warn (pi retries on its next start).
     if [ -n "$_pi_bin" ] && [ -n "$PI_PACKAGES" ]; then
         read -ra _pi_pkgs <<< "$PI_PACKAGES"
         for _pi_src in "${_pi_pkgs[@]}"; do
             [ -n "$_pi_src" ] || continue
+            # Only npm: sources map to a checkable node_modules path; others always re-run.
+            if [[ "$_pi_src" == npm:* ]] && [ -d "$HOME/.pi/agent/npm/node_modules/${_pi_src#npm:}" ] \
+                && jq -e --arg s "$_pi_src" '(.packages // []) | any(. == $s)' "$PI_SETTINGS" >/dev/null 2>&1; then
+                continue
+            fi
             echo "Installing pi package: $_pi_src"
             "$_pi_bin" install "$_pi_src" || echo "WARNING: pi install $_pi_src failed (offline?) — pi retries on its next start."
         done

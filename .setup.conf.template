@@ -3,8 +3,9 @@
 # All toggles default to false; set to true to enable
 
 # Dev toolchain toggles
+# Base Node LTS is always installed (agents depend on it); INSTALL_NODE adds the global tooling.
 INSTALL_RUST=false       # rustup → cargo, rustc, rustfmt, clippy
-INSTALL_NODE=false       # fnm → latest LTS Node + npm
+INSTALL_NODE=false       # global npm tools on top of Node LTS: pnpm + vite
 INSTALL_ICP=false        # dfxvm → dfx + ic-admin
 INSTALL_PYTHON=false     # apt python3 + python3-venv
 INSTALL_DOCKER=false     # apt docker-compose-v2

@@ -13,12 +13,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `bash/.bash_aliases`: add `pc` to continue Pi sessions.
 - Pi setup provisions the CLI, shared four-model Venice favorites with custom names, global instructions, and package updates while preserving each machine's active model.
 - Pi's startup model uses Venice's `function_calling_default` trait on fresh installs, with a concrete offline fallback; pi is documented in the agent crew and its auth file is off-limits.
+- `setup.sh`, `bin/bin/validate_setup.sh`: prompt for the Venice API key during setup and store it in `~/.pi/agent/auth.json` (`$VENICE_API_KEY` for headless runs), so pi's first start has models instead of an empty list, `/login`, and a restart.
+- `CONTRIBUTING.md`: document the Node-first ordering and the Venice key prompt.
 
 ### Changed
 
 - `tmux/.tmux.conf`: leave new sessions at ready shells instead of auto-starting Claude.
 - `bash/.bash_extra`, `tmux/.tmux.conf`: enable Pi's OSC 52 clipboard fallback through tmux to the host terminal.
 - `tmux/.tmux.conf`: enable extended keys and CSI-u on tmux ≥ 3.5 for Pi's modified Enter keys.
+- `setup.sh`, `bin/bin/validate_setup.sh`: always install/update Node LTS before every agent/app, moving fnm's `default` alias onto it so shells stop starting a stale Node; `INSTALL_NODE` now only gates the global npm tooling (pnpm, vite).
+- `setup.sh`: only run `pi install` for a `PI_PACKAGES` entry when it is missing from settings.json or ~/.pi/agent/npm.
 
 ### Removed
 
