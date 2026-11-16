@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2026-11-16]
+
+### Changed
+
+- `setup.sh`: run `pi.dev/install.sh` non-interactively (`TERM=dumb setsid -w sh` to detach `/dev/tty`), ensure `~/.local/bin` is on `PATH` before installing Pi, and remind existing shells to reload `~/.bashrc` when `node` was not already on `PATH`.
+- `CONTRIBUTING.md`: note `pi`'s `npm` requirement and non-interactive `/dev/tty` detachment.
+
+### Fixed
+
+- `setup.sh`: derive retired permission entries per key (`allow`/`deny`/`ask`) from template git history and drop literal `command(...)` entries already covered by `command(regex:...)` during forward and reverse settings merges.
+
 ## [2026-11-14]
 
 ### Added

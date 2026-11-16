@@ -111,6 +111,73 @@ else
     STOW_SKIP+=(ssh)
 fi
 
+# Settings merges: every sync below is "merge src into dest via a jq program". The helper
+# computes the merge, then writes ONLY when the result differs from dest as JSON (jq ==
+# ignores formatting/key order) — a reported merge always means a real change. Writes in
+# place via redirect, never mv/tmp-file: dest keeps its inode (hardlinks/symlinks survive).
+merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src, $retired=RETIRED_ALLOWS, $retired_tmpl=retired obj, $home=$HOME) $4=message [$5=retired_tmpl json]
+    local _merged _retired_tmpl="${5:-{\}}"
+    _merged=$(jq -s --argjson retired "$RETIRED_ALLOWS" --argjson retired_tmpl "$_retired_tmpl" --arg home "$HOME" "$3" "$1" "$2") || return 1
+    if ! jq -e --argjson m "$_merged" '. == $m' "$1" >/dev/null; then
+        printf '%s\n' "$_merged" > "$1" && echo "$4"
+    fi
+}
+# Permission entries present in git history of $1 (a repo template) that are absent from its
+# current copy, grouped by key (allow/deny/ask) in portable ~/ form. Subtracted from both
+# forward and reverse syncs so entries retired or replaced on another machine are pruned
+# locally rather than resurrected into the repo template by reverse-sync.
+retired_permissions() {
+    local template="$1"
+    local rel="${template#"$DOTFILES_DIR"/}"
+    local revs rev
+    revs=$(git -C "$DOTFILES_DIR" rev-list HEAD -- "$rel" 2>/dev/null) || { echo '{}'; return 0; }
+    [ -n "$revs" ] || { echo '{}'; return 0; }
+    {
+        jq -c '.permissions // {}' "$template" 2>/dev/null || echo '{}'
+        while IFS= read -r rev; do
+            [ -n "$rev" ] || continue
+            git -C "$DOTFILES_DIR" show "$rev:$rel" 2>/dev/null | jq -c '.permissions // empty' 2>/dev/null || true
+        done <<< "$revs"
+    } | jq -s --arg home "$HOME" "$JQ_PATH_DEFS"'
+        (.[0]) as $now
+        | (.[1:]) as $hist
+        | ["allow","deny","ask"]
+        | map(. as $k | {
+            ($k): ((([$hist[] | .[$k][]?] | map(collapse) | unique) - (($now[$k] // []) | map(collapse))))
+          })
+        | add // {}
+    ' 2>/dev/null || echo '{}'
+}
+# Static safety net for allows that must never be (re)granted even before/outside git history
+# (e.g. shallow clones or rules never committed to a template). `ps` bypasses Claude's own
+# env-printing guard (`ps auxe`), and `printenv` dumps every secret in the environment.
+RETIRED_ALLOWS='["Bash(printenv:*)","Bash(ps:*)","command(printenv)","read_file(.env)"]'
+# Union of the permission lists (dest ⊇ src) minus RETIRED_ALLOWS, retired template history
+# ($retired_tmpl), and any literal `command(...)` already matched by a `command(regex:...)` in
+# the same list — all other dest keys untouched. `allow` is always unioned; `deny`/`ask` only
+# when either side defines them, so a template without them never gains empty arrays. Path rules
+# are compared (and produced) in portable `~/` form; deploying into a local file expands them.
+ALLOWS_UNION='( . as $in
+  | '"$JQ_PATH_DEFS"'
+    def cmd_body: ([capture("^command\\((?<b>.*)\\)$")][0].b // null);
+    def drop_regex_covered:
+      . as $arr
+      | [$arr[] | cmd_body | select(. != null and startswith("regex:")) | ltrimstr("regex:")] as $pats
+      | if ($pats | length) == 0 then $arr
+        else [$arr[] | select(
+          (cmd_body as $b
+            | ($b != null) and (($b | startswith("regex:")) | not)
+              and any($pats[]; . as $p | (try ($b | test("^(?:" + $p + ")$")) catch false))
+          ) | not
+        )]
+        end;
+    def u($k): ((((($in[0].permissions[$k] // []) + ($in[1].permissions[$k] // [])) | map(collapse) | unique) - $retired - ($retired_tmpl[$k] // [])) | drop_regex_covered);
+    $in[0] * {permissions: ({allow: u("allow")}
+      + (["deny","ask"] | map(select($in[0].permissions[.] != null or $in[1].permissions[.] != null) | {(.): u(.)}) | add // {}))} )'
+# Same union, then expand `~/` path rules to absolute for a deployed (local) agy settings file
+ALLOWS_UNION_LOCAL='( '"$ALLOWS_UNION"'
+  | '"$JQ_PATH_DEFS"' .permissions |= with_entries(.value |= map(expand)) )'
+
 # When sourced by validate_setup.sh, stop here
 [[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 
@@ -226,36 +293,6 @@ if ! grep -qx "git_protocol: $GIT_PROTOCOL" "$GH_CONFIG"; then
     echo "Set gh git_protocol: $GIT_PROTOCOL"
 fi
 
-# Settings merges: every sync below is "merge src into dest via a jq program". The helper
-# computes the merge, then writes ONLY when the result differs from dest as JSON (jq ==
-# ignores formatting/key order) — a reported merge always means a real change. Writes in
-# place via redirect, never mv/tmp-file: dest keeps its inode (hardlinks/symlinks survive).
-merge_settings() {  # $1=dest $2=src $3=jq program (.[0]=dest, .[1]=src, $retired=RETIRED_ALLOWS, $home=$HOME) $4=message
-    local _merged
-    _merged=$(jq -s --argjson retired "$RETIRED_ALLOWS" --arg home "$HOME" "$3" "$1" "$2") || return 1
-    if ! jq -e --argjson m "$_merged" '. == $m' "$1" >/dev/null; then
-        printf '%s\n' "$_merged" > "$1" && echo "$4"
-    fi
-}
-# Allows that must never be (re)granted. A union-only sync can't delete, and the reverse sync below
-# would resurrect any entry still present locally, so removals are listed here and subtracted from
-# every merge result (dest and template alike). Claude's own read-only analysis covers `ps`
-# (it prompts for env-printing forms like `ps auxe`) — an explicit allow bypasses that guard — and
-# `printenv` (Claude and agy alike) dumps every secret in the environment.
-RETIRED_ALLOWS='["Bash(printenv:*)","Bash(ps:*)","command(printenv)","read_file(.env)"]'
-# Union of the permission lists (dest ⊇ src) minus RETIRED_ALLOWS, all other dest keys untouched —
-# shared by every merge. `allow` is always unioned; `deny`/`ask` only when either side defines them,
-# so a template without them never gains empty arrays. Path rules are compared (and the result is
-# produced) in portable `~/` form — see JQ_PATH_DEFS; deploying into a local file expands them.
-ALLOWS_UNION='( . as $in
-  | '"$JQ_PATH_DEFS"'
-    def u($k): (((($in[0].permissions[$k] // []) + ($in[1].permissions[$k] // [])) | map(collapse) | unique) - $retired);
-    $in[0] * {permissions: ({allow: u("allow")}
-      + (["deny","ask"] | map(select($in[0].permissions[.] != null or $in[1].permissions[.] != null) | {(.): u(.)}) | add // {}))} )'
-# Same union, then expand `~/` path rules to absolute for a deployed (local) agy settings file
-ALLOWS_UNION_LOCAL='( '"$ALLOWS_UNION"'
-  | '"$JQ_PATH_DEFS"' .permissions |= with_entries(.value |= map(expand)) )'
-
 # Deploy Claude settings.json from template (not via stow to allow local customization),
 # then keep forward-merging template allows so allows committed on other machines propagate.
 # Only when Claude is enabled — a disabled machine gets no settings.json provisioned (the
@@ -274,9 +311,11 @@ if [[ "$INSTALL_CLAUDE" == true ]]; then
         # .sessionUrl kills the Claude-Session trailer + PR-body link — two independent gates, so
         # the deprecated includeCoAuthoredBy (kept for older Claude Code builds on other boxes)
         # silences only the former. jq's `*` merges the object recursively, template keys winning.
+        CLAUDE_RETIRED=$(retired_permissions "$CLAUDE_TEMPLATE")
         merge_settings "$CLAUDE_SETTINGS" "$CLAUDE_TEMPLATE" \
             "$ALLOWS_UNION * (.[1] | {includeCoAuthoredBy, attribution, awaySummaryEnabled, spinnerTipsEnabled, feedbackSurveyRate} | with_entries(select(.value != null)))" \
-            "Merged template allows + policy keys into ~/.claude/settings.json"
+            "Merged template allows + policy keys into ~/.claude/settings.json" \
+            "$CLAUDE_RETIRED"
     fi
 fi
 
@@ -482,12 +521,18 @@ fi
 # an installer that finds no Node on PATH provisions a private copy of its own (pi's does) — then
 # the machine has two Node trees, one managed by fnm and one nobody updates. Node always goes
 # first. The global tooling on top (pnpm, vite) stays opt-in via INSTALL_NODE.
+_caller_has_node=false; command -v node >/dev/null 2>&1 && _caller_has_node=true
 if ! command -v fnm >/dev/null 2>&1; then
     echo "Installing fnm (Fast Node Manager)..."
     curl -fsSL https://fnm.vercel.app/install | bash
     NEEDS_RESTART=true
 fi
 export PATH="$HOME/.local/share/fnm:$PATH"
+# Ensure ~/.local/bin is on PATH for user-local tools (pi's installer symlinks here only if on PATH)
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
 # Always install LTS: a no-op when it is current, an upgrade when not. The `default` alias is
 # repointed at it in the same breath — fnm pins that alias to whatever version was installed
 # first, so leaving it alone keeps every new shell starting the stale one forever.
@@ -504,6 +549,7 @@ if [ -d "$_fnm_bin/bin" ]; then
 elif ! eval "$(env -u XDG_RUNTIME_DIR fnm env --shell bash 2>/dev/null)" 2>/dev/null; then
     echo "WARNING: could not put Node on PATH — npm tooling and agents may fail."
 fi
+$_caller_has_node || NEEDS_RESTART=true
 mkdir -p ~/.local/share/bash-completion/completions
 fnm completions --shell bash > ~/.local/share/bash-completion/completions/fnm
 
@@ -544,17 +590,28 @@ fi
 if [[ "$INSTALL_PI" == true ]]; then
     # Pi (pi.dev coding agent). Curl installer → ~/.pi/agent with a ~/.local/bin/pi entrypoint;
     # fully user-local, so it also works on rootless devbox containers (no sudo needed). Node
-    # ≥ 22.19 is already on PATH from the fnm block above, so the installer reuses it instead of
-    # provisioning a second tree. Upgrades afterwards run through `pi update` (validate_setup.sh -u).
+    # ≥ 22.19 + npm are already on PATH from the fnm block above, which lets the installer run
+    # non-interactively (without /dev/tty it aborts if Node/npm are missing) and prevents a
+    # duplicate Node tree. Upgrades afterwards run through `pi update` (validate_setup.sh -u).
     _pi_bin=""
     command -v pi >/dev/null 2>&1 && _pi_bin="pi"
     [ -z "$_pi_bin" ] && [ -x "$HOME/.local/bin/pi" ] && _pi_bin="$HOME/.local/bin/pi"
     if [ -z "$_pi_bin" ]; then
         echo "Installing Pi (pi coding agent)..."
-        curl -fsSL https://pi.dev/install.sh | sh
+        # Detach from /dev/tty with setsid -w so pi.dev/install.sh skips its interactive prompts
+        # ([y/u/n] menu, PATH-rc update, "Start pi now?"); TERM=dumb avoids clearing scrollback.
+        if _pi_installer=$(curl -fsSL https://pi.dev/install.sh); then
+            printf '%s\n' "$_pi_installer" | TERM=dumb setsid -w sh
+        fi
         command -v pi >/dev/null 2>&1 && _pi_bin="pi"
         [ -z "$_pi_bin" ] && [ -x "$HOME/.local/bin/pi" ] && _pi_bin="$HOME/.local/bin/pi"
-        [ -n "$_pi_bin" ] || echo "WARNING: Pi install failed — re-run setup.sh or install manually."
+        if [ -n "$_pi_bin" ]; then
+            if ! $_caller_has_node; then
+                echo "Note: pi uses Node from fnm — existing shells need '. ~/.bashrc' (or a restart) before pi can run."
+            fi
+        else
+            echo "WARNING: Pi install failed — re-run setup.sh or install manually."
+        fi
     fi
     # Venice API key up front. pi-venice resolves it from ~/.pi/agent/auth.json (or
     # $VENICE_API_KEY); without either, the first start shows an empty model list, makes you
@@ -690,9 +747,11 @@ if [[ "$INSTALL_ANTIGRAVITY" == true ]]; then
     if [[ -f "$AGY_SETTINGS" ]]; then
         # Allows union + statusLine/hooks/title/agentMode/allowNonWorkspaceAccess parity (only for keys the template
         # actually has, so a missing template key never injects null or erases local values) + machine sandbox/toolPermission
+        AGY_RETIRED=$(retired_permissions "$AGY_TEMPLATE")
         merge_settings "$AGY_SETTINGS" "$AGY_TEMPLATE" \
             "$ALLOWS_UNION_LOCAL * (.[1] | {statusLine, hooks, title, agentMode, allowNonWorkspaceAccess} | with_entries(select(.value != null))) * {enableTerminalSandbox: $CAN_SUDO, toolPermission: \"$AGY_TOOL_PERMISSION\"}" \
-            "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json"
+            "Merged settings.json template into ~/.gemini/antigravity-cli/settings.json" \
+            "$AGY_RETIRED"
     else
         # Not a plain cp: the template's portable `~/` path rules must be made absolute for agy
         jq --arg home "$HOME" --argjson sandbox "$CAN_SUDO" --arg tp "$AGY_TOOL_PERMISSION" \
@@ -724,8 +783,14 @@ for _pair in "$HOME/.claude/settings.json:$DOTFILES_DIR/claude/.claude/settings.
              "$HOME/.gemini/antigravity-cli/settings.json:$DOTFILES_DIR/gemini/.gemini/antigravity-cli/settings.json"; do
     _local="${_pair%%:*}"; _template="${_pair#*:}"
     [ -f "$_local" ] && [ -f "$_template" ] || continue
+    if [ "$_template" = "$DOTFILES_DIR/claude/.claude/settings.json" ]; then
+        _retired="${CLAUDE_RETIRED:-$(retired_permissions "$_template")}"
+    else
+        _retired="${AGY_RETIRED:-$(retired_permissions "$_template")}"
+    fi
     merge_settings "$_template" "$_local" "$ALLOWS_UNION" \
-        "Synced local allows into $(basename "$(dirname "$_template")")/settings.json template — commit ~/dotfiles to share"
+        "Synced local allows into $(basename "$(dirname "$_template")")/settings.json template — commit ~/dotfiles to share" \
+        "$_retired"
 done
 
 # Uninstall the retired Gemini CLI (replaced by Antigravity; stops serving 2026-06-18).
@@ -783,7 +848,7 @@ if [ ${#_no_sudo_skipped[@]} -gt 0 ]; then
     echo "WARNING: no sudo — not installed (bake into the image instead): ${_no_sudo_skipped[*]}"
 fi
 if [[ "$NEEDS_RESTART" == true ]]; then
-    echo "Restart your shell or run"
+    echo "Restart existing shells (for PATH / Node / pi) or run in each:"
     echo '. ~/.bashrc'
 fi
 echo ""
